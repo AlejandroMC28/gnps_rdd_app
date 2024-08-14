@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from src.visualization import bar_plot_food_counts, box_plot_food_proportions, transform_to_proportions, show_heatmap
 
 def show_visualization():
-    def main():
+        
         st.title("Dynamic Filtering and Visualization")
 
         st.sidebar.header("Dynamic Filtering Settings")
@@ -77,8 +77,3 @@ def show_visualization():
                     heatmap_df = transform_to_proportions(filtered_food_counts)
 
                     show_heatmap(filtered_food_counts, apply_clustering=clustering)
-
-            
-
-    if __name__ == "__main__":
-        main()
