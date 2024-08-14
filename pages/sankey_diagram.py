@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 
 st.set_page_config(initial_sidebar_state="auto")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram"], selected= "Sankey Diagram")
+page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= "Sankey Diagram")
 
 if page == "Create Food Counts":
     st.switch_page("pages/create_food_counts.py")
@@ -18,6 +18,8 @@ if page == "Home":
     st.switch_page("home.py")
 if page == "PCA":
     st.switch_page("pages/PCA.py")
+if page == "How to use":
+    st.switch_page("pages/how_to_use.py")
 
 def load_food_metadata() -> pd.DataFrame:
     """

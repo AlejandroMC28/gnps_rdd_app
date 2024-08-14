@@ -3,7 +3,7 @@ from streamlit_navigation_bar import st_navbar
 
 st.set_page_config(initial_sidebar_state="collapsed", page_icon="🍋")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram"], selected= 'Home')
+page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'Home')
 
 if page == "Create Food Counts":
     st.switch_page("pages/create_food_counts.py")
@@ -13,56 +13,47 @@ if page == "PCA":
     st.switch_page("pages/PCA.py")
 if page == "Sankey Diagram":
     st.switch_page("pages/sankey_diagram.py")
+if page == "How to use":
+    st.switch_page("pages/how_to_use.py")
 
 
 
-
-
-st.title("Welcome to the GNPS-RDD app")
-
+# Title and Introduction
+st.title("Welcome to the GNPS-RDD Web Application")
 st.write("""
-# Foodomics Data Analysis
-This application is designed to make Reference Data Driven Metabolomics analysis in a simple and effective matter.
-Currently the app is suited to work with food data.
-
-## Introduction
-This application provides powerful insights into your metabolomics data, allowing you to explore dietary patterns, analyze food samples, and gain deeper understanding from a variety of biological specimens.
-
-
-
-## How to Use
-1. **Generate Food Counts**:
-    - Navigate to the "Create Food Counts" page.
-    - **Data Upload**: Upload your GNPS job result file in CSV or TSV format using the file uploader.
-    - **Select Sample Groups**: Use the multiselect dropdowns in the sidebar to select the sample groups in your data (e.g., G1, G2 for study groups, and G3, G4 for reference groups).
-    - **Choose Food Type**: Select whether the reference sample type is 'simple', 'complex', or 'all' using the dropdown in the sidebar.
-    - **Generate**: Click the "Generate Food Counts" button to process the data and generate the food counts table. A message will confirm when the food counts are generated successfully.
-    - **Optional - Upload Metadata**: You can also upload a sample metadata file in CSV or TSV format. Once uploaded, you can join it with the food counts by selecting a new group column from the dropdown and clicking the "Join and Replace Group" button.
-
-2. **Filter and Visualize Food Counts**:
-    - Navigate to the "Dynamic Filtering and Visualization" page.
-    - **Select Hierarchy Level**: Use the slider in the sidebar to select the hierarchy level of the food data you want to visualize.
-    - **Filter Data**: Use the multiselect dropdown to choose the columns you want to display in the table.
-    - **Rename Groups**: Optionally, rename group values by entering new names in the provided text inputs.
-    - **Select Plot Type**: Choose the type of plot for visualization (Bar Plot, Box Plot, Heatmap, or Clustered Heatmap) from the dropdown.
-    - **Group By Option**: Optionally, check the box to group data by the 'group' column.
-    - The filtered data and selected visualizations will be displayed on the main page.
-
-3. **PCA Analysis**:
-    - Navigate to the "PCA Analysis" page.
-    - **Select Hierarchy Level**: Choose the hierarchy level for the PCA from the dropdown in the sidebar.
-    - **Rename Groups**: Optionally, rename group values using the provided text inputs.
-    - **Select Features**: Use the multiselect dropdown to select features for the PCA analysis.
-    - **Choose Components**: Use the slider to select the number of principal components for the analysis.
-    - **Apply CLR Transformation**: Optionally, check the box to apply CLR (Centered Log Ratio) transformation and set the offset value.
-    - The PCA results, including the variance explained by each component and a scatter plot of the principal components, will be displayed.
-
-4. **Sankey Diagram**:
-    - Navigate to the "Sankey Diagram" page.
-    - **Select Food Type**: Choose the type of food data for flow visualization (simple, complex, or all) from the dropdown in the sidebar.
-    - **Select Groups and Hierarchy Level**: Use the multiselect dropdown to select the groups and the slider to select the maximum hierarchy level for visualization.
-    - **Upload Files**: Upload the hierarchy file and the molecular network file using the file uploaders.
-    - The Sankey diagram will be generated and displayed based on the uploaded data and selected settings.
-
-Follow these steps to explore the foodomics data and create your insights.
+This application is designed to help you gain powerful insights from your metabolomics data by leveraging **Reference Data-Driven (RDD) metabolomics**. 
+RDD enhances the interpretability of untargeted metabolomics by integrating curated reference datasets with detailed metadata, allowing for more contextual and meaningful analysis.
 """)
+
+# About the Foodomics Dataset
+st.header("About the Foodomics Dataset")
+st.write("""
+The Foodomics dataset is a comprehensive collection of over **3,000 food items**, organized into a detailed **seven-level ontology**. This dataset, which includes rich metadata on the geographical origin, processing methods, and dietary sources, 
+is foundational to the insights you can gain from this application. By exploring this dataset, you can delve into various food samples and human biospecimens, identifying complex relationships and dietary patterns.
+
+**We invite you to collaborate in expanding this dataset.** Contributions from diverse sources, including new data are welcome. Together, we can enhance our understanding and broaden the scope of 'Global Foodomics.'
+""")
+
+# Using the Application
+st.header("Using the Application")
+st.write("""
+This tool allows you to:
+- Generate detailed food counts linked to metadata.
+- Explore and visualize your data through interactive charts and graphs.
+- Perform advanced analyses such as Principal Component Analysis (PCA) and Sankey diagram creation.
+
+For a detailed guide on how to use the app, including step-by-step instructions and example workflows, please visit our **[How to Use](#)** tab. 
+This section provides everything you need to get started, as well as links to additional resources.
+""")
+
+# Citing This Tool
+st.header("Citing This Tool")
+st.write("""
+When using this tool in your research, please cite the following paper:
+- *Gauglitz et al., Nature Biotechnology, 2022*
+
+This app is provided under **[specific license type]**, and we ask that you adhere to the licensing terms when using the data and features provided.
+""")
+
+
+

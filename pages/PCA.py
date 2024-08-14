@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(initial_sidebar_state="auto")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram"], selected= 'PCA')
+page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'PCA')
 
 if page == "Create Food Counts":
     st.switch_page("pages/create_food_counts.py")
@@ -20,6 +20,8 @@ if page == "Home":
     st.switch_page("home.py")
 if page == "Sankey Diagram":
     st.switch_page("pages/sankey_diagram.py")
+if page == "How to use":
+    st.switch_page("pages/how_to_use.py")
 
 
 # pca_analysis.py

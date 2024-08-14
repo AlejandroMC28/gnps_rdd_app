@@ -7,7 +7,7 @@ from streamlit_navigation_bar import st_navbar
 
 st.set_page_config(initial_sidebar_state="auto")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram"], selected= 'Create Food Counts')
+page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'Create Food Counts')
 
 if page == "PCA":
     st.switch_page("pages/PCA.py")
@@ -17,6 +17,8 @@ if page == "Home":
     st.switch_page("home.py")
 if page == "Sankey Diagram":
     st.switch_page("pages/sankey_diagram.py")
+if page == "How to use":
+    st.switch_page("pages/how_to_use.py")
 
 
 
