@@ -6,4 +6,5 @@ seaborn
 scikit-learn
 numpy
 floweaver
+streamlit_navigation_bar
 
