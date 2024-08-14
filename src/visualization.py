@@ -96,10 +96,10 @@ def box_plot_food_proportions(filtered_food_counts, group_by=False):
 
 def show_heatmap(filtered_data, apply_clustering=False):
 
-    groups = filtered_data.set_index('filename')['group']
+    groups = filtered_data['group']
 
     # Drop the 'group' column and set 'filename' as the index
-    data_wo_group = filtered_data.drop(columns=['group']).set_index('filename')
+    data_wo_group = filtered_data.drop(columns=['group'])
 
     if apply_clustering:
         # Perform hierarchical/agglomerative clustering on the proportions

@@ -9,7 +9,7 @@ def show_home():
     This application is designed to make Reference Data Driven Metabolomics analysis in a simple and effective matter.
     Currently the app is suited to work with food data.
 
-    ## Introduction
+    ## Introductions
     Reference data-driven metabolomics is a novel approach for enhancing the use and interpretability of untargeted metabolomics. This application is designed to use the results of a GNPS molecular network job in conjunction with a metadata file.
 
     ## How to Use
