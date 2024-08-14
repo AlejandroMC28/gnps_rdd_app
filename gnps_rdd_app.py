@@ -41,7 +41,8 @@ page = st_navbar(
 
 functions = {
     "Home": pg.show_home,
-    "Create Food Counts": pg.show_create_food_counts
+    "Create Food Counts": pg.show_create_food_counts,
+    "Dynamic filtering & visualization":pg.show_visualization
 }
 go_to = functions.get(page)
 if go_to:

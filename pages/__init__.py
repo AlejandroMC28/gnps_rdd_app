@@ -1,2 +1,3 @@
 from pages.home import show_home
 from pages.create_food_counts import show_create_food_counts
+from pages.dynamic_filtering_visualization import show_visualization
