@@ -64,7 +64,7 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
         st.write("Uploaded sample metadata:")
         st.write(sample_metadata.head())
 
-    if 'sample_metadata' in st.session_state:
+    if 'sample_metadata' in st.session_state and use_demo == False:
         new_group_column = st.selectbox('Select new group column', st.session_state.sample_metadata.columns)
         st.write(f"Selected new group column: {new_group_column}")
         
