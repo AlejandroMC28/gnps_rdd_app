@@ -53,7 +53,7 @@ if 'gnps_df' in st.session_state:
         st.write(food_counts.head())
         st.session_state.food_counts_generated = True
 
-if 'food_counts_generated' in st.session_state and st.session_state.food_counts_generated:
+if 'food_counts_generated' in st.session_state and st.session_state.food_counts_generated and use_demo == False:
     st.write("Food counts have been generated. You can now use other metadata.")
 
 
@@ -64,8 +64,7 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
         st.write("Uploaded sample metadata:")
         st.write(sample_metadata.head())
 
-    if 'sample_metadata' in st.session_state and use_demo == False:
-        st.write(use_demo)
+    if 'sample_metadata' in st.session_state:
         new_group_column = st.selectbox('Select new group column', st.session_state.sample_metadata.columns)
         st.write(f"Selected new group column: {new_group_column}")
         
@@ -82,3 +81,6 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
             st.session_state.food_counts = combined_df
             st.write('Group has been changed successfully:')
             st.write(combined_df.head())
+
+elif  'food_counts_generated' in st.session_state and st.session_state.food_counts_generated and use_demo == True:
+     st.write("Food counts have been generated")
