@@ -19,7 +19,7 @@ if page == "How to use":
 
 
 # Title and Introduction
-st.title("Welcome to the GNPS-RDD Web Application")
+st.title("Welcome to the Foodomics Application")
 st.write("""
 This application is designed to help you gain powerful insights from your metabolomics data by leveraging **Reference Data-Driven (RDD) metabolomics**. 
 RDD enhances the interpretability of untargeted metabolomics by integrating curated reference datasets with detailed metadata, allowing for more contextual and meaningful analysis.
