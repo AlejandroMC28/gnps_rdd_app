@@ -31,7 +31,7 @@ st.write("""
 The Foodomics dataset is a comprehensive collection of over **3,000 food items**, organized into a detailed **seven-level ontology**. This dataset, which includes rich metadata on the geographical origin, processing methods, and dietary sources, 
 is foundational to the insights you can gain from this application. By exploring this dataset, you can delve into various food samples and human biospecimens, identifying complex relationships and dietary patterns.
 
-**We invite you to collaborate in expanding this dataset.** Contributions from diverse sources, including new data are welcome. Together, we can enhance our understanding and broaden the scope of 'Global Foodomics.'
+**We invite you to collaborate in expanding this dataset.** Contributions from diverse sources, including new data are welcome. Together, we can enhance our understanding and broaden the scope of this project.
 """)
 
 # Using the Application
@@ -50,7 +50,7 @@ This section provides everything you need to get started, as well as links to ad
 st.header("Citing This Tool")
 st.write("""
 When using this tool in your research, please cite the following paper:
-- *Gauglitz et al., Nature Biotechnology, 2022*
+
 
 This app is provided under **[specific license type]**, and we ask that you adhere to the licensing terms when using the data and features provided.
 """)

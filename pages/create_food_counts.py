@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from src.data_processing import load_food_metadata, get_sample_metadata, get_sample_types, get_dataset_food_counts_all
 from streamlit_navigation_bar import st_navbar
-
+import io
 
 st.set_page_config(initial_sidebar_state="auto")
 
@@ -20,16 +20,23 @@ if page == "Sankey Diagram":
 if page == "How to use":
     st.switch_page("pages/how_to_use.py")
 
-
-
-
-
 st.title("Generate Food Counts")
 
+st.write("""
+The "Generate Food Counts" tab allows you to create a detailed table of food counts based on your GNPS molecular network data. 
+This table links each sample in your data to the relevant metadata, facilitating in-depth analysis and visualization of your metabolomics data.
+""")
+
 st.sidebar.header("Settings")
-all_groups = st.sidebar.multiselect("Select all groups (e.g., G1, G2)", options=['G1', 'G2', 'G5', 'G6'], default=['G1'])
-some_groups = st.sidebar.multiselect("Select some groups (e.g., G3, G4)", options=['G3', 'G4'], default=['G4'])
-simple_complex = st.sidebar.selectbox("Select food type", ['all', 'simple', 'complex'])
+all_groups = st.sidebar.multiselect("Select all groups (e.g., G1, G2)", options=['G1', 'G2', 'G5', 'G6'], default=['G1'], help="These are the groups related to the sample data")
+some_groups = st.sidebar.multiselect("Select some groups (e.g., G3, G4)", options=['G3', 'G4'], default=['G4'], help="These are the groups related to the reference data")
+simple_complex = st.sidebar.selectbox("Select food type", ['all', 'simple', 'complex'], help="Choose whether to include simple, complex, or all food types in the counts generation.")
+
+st.sidebar.write("""
+### Understanding Metadata Hierarchy Levels
+The metadata used in this application is organized into a seven-level hierarchy, allowing you to analyze your data at varying levels of detail. 
+From broad categories to specific food items, these levels help you tailor your analysis to the specific needs of your research.
+""")
 
 use_demo = st.sidebar.checkbox("Use Demo Data")
 
@@ -39,6 +46,16 @@ if use_demo:
     st.session_state.gnps_df = gnps_df
     st.write("Using demo GNPS network data:")
     st.write(gnps_df.head())
+    st.sidebar.write("""
+    The demo data consists of a gnps network job used in the following study. To get the best results please choose as all groups:G1
+    """)
+        # Option to download the raw demo data
+    st.download_button(
+        label="Download Raw Demo Data",
+        data=gnps_df.to_csv(index=False).encode('utf-8'),
+        file_name='demo_gnps_network.tsv',
+        mime='text/tsv'
+    )
 else:
     uploaded_file = st.file_uploader("Upload your molecular network file", type=["csv", "tsv"])
     if uploaded_file is not None:
@@ -57,7 +74,6 @@ if 'gnps_df' in st.session_state:
 
 if 'food_counts_generated' in st.session_state and st.session_state.food_counts_generated and use_demo == False:
     st.write("Food counts have been generated. You can now use other metadata.")
-
 
     sample_file = st.file_uploader('Upload food metadata', type=["csv", "tsv"])
     if sample_file is not None:
@@ -85,4 +101,14 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
             st.write(combined_df.head())
 
 elif  'food_counts_generated' in st.session_state and st.session_state.food_counts_generated and use_demo == True:
-     st.write("Food counts have been generated")
+     st.write("Food counts have been generated.")
+
+if 'food_counts' in st.session_state:
+    st.write("You can download the generated food count table for further analysis.")
+    st.download_button(
+        label="Download Food Counts",
+        data=st.session_state.food_counts.to_csv(index=False).encode('utf-8'),
+        file_name='food_counts.csv',
+        mime='text/csv'
+    )
+
