@@ -126,7 +126,7 @@ def show_heatmap(filtered_data, apply_clustering=False):
 
         # Create a legend for the groups
         handles = [plt.Line2D([0], [0], color=color, lw=4) for color in group_colors.values()]
-        labels = [f'Group {group}' for group in group_colors.keys()]
+        labels = [f'{group}' for group in group_colors.keys()]
         
         plt.legend(handles, labels, title='Groups')
         plt.title('Dendrogram')

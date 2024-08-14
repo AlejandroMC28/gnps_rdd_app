@@ -1,10 +1,19 @@
 import os
 import streamlit as st
-import importlib
-
 from streamlit_navigation_bar import st_navbar
 import pages as pg
+import importlib
+import home
+import pages.PCA
+import pages.sankey_diagram
+import pages.dynamic_filtering_visualization
+import pages.create_food_counts
 
+importlib.reload(home)
+importlib.reload(pages.PCA)
+importlib.reload(pages.sankey_diagram)
+importlib.reload(pages.dynamic_filtering_visualization)
+importlib.reload(pages.create_food_counts)
 # Force reload of modules during development
 importlib.reload(pg)
 
@@ -53,3 +62,5 @@ functions = {
 go_to = functions.get(page)
 if go_to:
     go_to()
+
+st.write(page)
