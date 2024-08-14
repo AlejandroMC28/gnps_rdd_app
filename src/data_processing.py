@@ -1,7 +1,6 @@
 # src/data_processing.py
 import pandas as pd
 import os
-import pkg_resources
 import numpy as np
 import pandas as pd
 from typing import List
