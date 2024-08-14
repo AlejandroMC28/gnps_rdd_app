@@ -2,11 +2,12 @@ import streamlit as st
 
 def show_home():
 
-    st.title("Welcome to the Foodomics App")
+    st.title("Welcome to the GNPS-RDD app")
 
     st.write("""
     # Foodomics Data Analysis
-    This application allows you to analyze foodomics data.
+    This application is designed to make Reference Data Driven Metabolomics analysis in a simple and effective matter.
+    Currently the app is suited to work with food data.
 
     ## Introduction
     Reference data-driven metabolomics is a novel approach for enhancing the use and interpretability of untargeted metabolomics. This application is designed to use the results of a GNPS molecular network job in conjunction with a metadata file.

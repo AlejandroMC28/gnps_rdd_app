@@ -3,7 +3,7 @@ import streamlit as st
 from streamlit_navigation_bar import st_navbar
 import pages as pg
 
-st.set_page_config(page_title="Foodomics App", page_icon="🍋", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="GNPS-RDD app", page_icon="🍋", initial_sidebar_state="auto")
 
 pages = ['Home', 'Create Food Counts', 'Dynamic filtering & visualization', "PCA", "Sankey Diagram"]
 
