@@ -7,4 +7,5 @@ scikit-learn
 numpy
 floweaver
 streamlit_navigation_bar
+pkg_resources
 
