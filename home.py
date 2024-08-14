@@ -28,7 +28,7 @@ Currently the app is suited to work with food data.
 ## Introduction
 This application provides powerful insights into your metabolomics data, allowing you to explore dietary patterns, analyze food samples, and gain deeper understanding from a variety of biological specimens.
 
-         In particular, this app enables the investigation of different categories of food samples and human biospecimens. It’s designed to provide valuable insights across various initial sample types, making it a versatile tool in both foodomics and clinical research.
+
 
 ## How to Use
 1. **Generate Food Counts**:
