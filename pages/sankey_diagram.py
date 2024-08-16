@@ -131,13 +131,16 @@ if hierarchical_levels_file and gnps_network_file:
     width = max_hierarchy_flows * 150 + 300
     height = math.ceil(sum([1 for node in nodes if id_to_level.get(node, 0) == max_hierarchy_flows]) * 50 / 100) * 100
 
-    # Map colors from the sample_type_hierarchy to the nodes
+
+
+     # Map colors from the sample_type_hierarchy to the nodes
     descriptor_to_color = sample_type_hierarchy['color_code'].to_dict()
+
     descriptor_to_color = {k: v if pd.notna(v) else '#CCCCCC' for k, v in descriptor_to_color.items()}
 
     # Apply colors to nodes and links
-    node_colors = [descriptor_to_color.get(node.split('_')[0], '#CCCCCC') for node in sorted_nodes]
-    link_colors = [descriptor_to_color.get(node.split('_')[0], '#CCCCCC') for node in flows['source']]
+    node_colors = [descriptor_to_color.get(node, '#CCCCCC') for node in sorted_nodes]
+    link_colors = [descriptor_to_color.get(node, '#CCCCCC') for node in flows['source']]
 
     # Create the Sankey diagram
     fig = go.Figure(data=[go.Sankey(
