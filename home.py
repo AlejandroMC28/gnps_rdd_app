@@ -16,7 +16,9 @@ if page == "Sankey Diagram":
 if page == "How to use":
     st.switch_page("pages/how_to_use.py")
 
-
+app_path = 'https://gnps-rdd.streamlit.app/'
+page_file_path = 'pages/how_to_use.py'
+page = page_file_path.split('/')[1][0:-3]  # get "home"
 
 # Title and Introduction
 st.title("Welcome to the Foodomics Application")
@@ -36,15 +38,16 @@ is foundational to the insights you can gain from this application. By exploring
 
 # Using the Application
 st.header("Using the Application")
-st.write("""
+st.markdown(f"""
 This tool allows you to:
 - Generate detailed food counts linked to metadata.
 - Explore and visualize your data through interactive charts and graphs.
 - Perform advanced analyses such as Principal Component Analysis (PCA) and Sankey diagram creation.
 
-For a detailed guide on how to use the app, including step-by-step instructions and example workflows, please visit our **[How to Use](#)** tab. 
+For a detailed guide on how to use the app, including step-by-step instructions and example workflows, please visit our <a href="{app_path}/{page}" target="_self">How to Use</a>
+tab. 
 This section provides everything you need to get started, as well as links to additional resources.
-""")
+""", unsafe_allow_html=True)
 
 # Citing This Tool
 st.header("Citing This Tool")
@@ -54,6 +57,8 @@ When using this tool in your research, please cite the following paper:
 
 This app is provided under **[specific license type]**, and we ask that you adhere to the licensing terms when using the data and features provided.
 """)
+
+
 
 
 
