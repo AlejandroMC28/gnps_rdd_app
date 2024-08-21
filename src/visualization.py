@@ -51,16 +51,7 @@ def box_plot_food_proportions(filtered_food_counts, group_colors=None, group_by=
     if group_by:
         # Convert the dataframe to long-form, keeping 'group' as an identifier
         long_form_df = pd.melt(filtered_food_counts, id_vars='group', var_name='Food Type', value_name='Count')
-        
         # Calculate the total count for each food type across all groups
-        total_counts = long_form_df.groupby('Food Type')['Count'].sum().reset_index()
-        total_counts.columns = ['Food Type', 'Total Count']
-        
-        # Merge the total counts back with the long form dataframe
-        long_form_df = long_form_df.merge(total_counts, on='Food Type')
-        
-        # Calculate the proportion of each group's count relative to the total count for each food type
-        long_form_df['Proportion'] = long_form_df['Count'] / long_form_df['Total Count']
 
         fig = go.Figure()
 
@@ -70,7 +61,7 @@ def box_plot_food_proportions(filtered_food_counts, group_colors=None, group_by=
             group_data = long_form_df[long_form_df['group'] == group]
             fig.add_trace(go.Box(
                 x=group_data['Food Type'],
-                y=group_data['Proportion'],
+                y=group_data['Count'],
                 name=group,
                 boxpoints='all',  # Show all points
                 jitter=0.3,       # Spread them out for visibility
@@ -96,16 +87,15 @@ def box_plot_food_proportions(filtered_food_counts, group_colors=None, group_by=
         long_form_df = pd.melt(filtered_no_group, var_name='Food Type', value_name='Count')
         
         # Merge the total counts back with the long form dataframe
-        long_form_df = long_form_df.merge(total_counts, on='Food Type')
+   
         
         # Calculate the proportion of each count relative to the total count for each food type
-        long_form_df['Proportion'] = long_form_df['Count'] / long_form_df['Total Count']
 
         fig = go.Figure()
 
         fig.add_trace(go.Box(
             x=long_form_df['Food Type'],
-            y=long_form_df['Proportion'],
+            y=long_form_df['Count'],
             boxpoints='all',  # Show all points
             jitter=0.3,       # Spread them out for visibility
             pointpos=0,    # Position points inside the box
