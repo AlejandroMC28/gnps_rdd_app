@@ -35,14 +35,12 @@ def run_pca(data, features, n_components, apply_clr=False, offset=1):
     pca = PCA(n_components=n_components)
     pca_result = pca.fit_transform(scaled_data)
     
-    # Variance explained by each principal component
     explained_variance = pca.explained_variance_ratio_
     explained_variance_df = pd.DataFrame({
         'PC': [f'PC{i+1}' for i in range(n_components)],
         'Explained Variance': explained_variance
     })
 
-    # Create PCA DataFrame
     pca_columns = [f'PC{i+1}' for i in range(n_components)]
     pca_df = pd.DataFrame(data=pca_result, columns=pca_columns)
     pca_df = pd.concat([pca_df, data.reset_index(drop=True)], axis=1)
@@ -52,7 +50,6 @@ def run_pca(data, features, n_components, apply_clr=False, offset=1):
 
 def clr_transformation(data, offset=1):
     """Applies Centered Log Ratio (CLR) transformation with an offset."""
-    # Replace zeros with a small value to avoid log(0)
     data = data + offset
     log_data = np.log(data)
     clr_data = log_data - log_data.mean(axis=1).values.reshape(-1, 1)
@@ -150,21 +147,44 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
     y_pc = st.sidebar.selectbox("Select PC for y-axis", pca_columns, index=1)
 
     st.write("### PCA Result")
-   
+
+    # Sidebar for selecting group colors
+    if 'group' in data.columns:
+        group_values = data['group'].unique()
+        group_colors = {}
+
+        st.sidebar.header("Select Group Colors")
+        for group in group_values:
+            group_colors[group] = st.sidebar.color_picker(f"Pick a color for {group}", "#0000FF")
+    else:
+        group_colors = None
     
     if 'group' in data.columns:
-        fig = px.scatter(pca_df, x=x_pc, y=y_pc, color='group', title="PCA Scatter Plot", hover_data=[data.index], template='plotly_white')
+        if group_colors:
+            color_discrete_map = {group: color for group, color in group_colors.items()}
+        else:
+            color_discrete_map = None
+
+        fig = px.scatter(
+            pca_df, 
+            x=x_pc, 
+            y=y_pc, 
+            color='group', 
+            title="PCA Scatter Plot", 
+            hover_data=[data.index], 
+            template='plotly_white',
+            color_discrete_map=color_discrete_map
+        )
     else:
         fig = px.scatter(pca_df, x=x_pc, y=y_pc, title="PCA Scatter Plot", template='plotly_white')
 
-    # Add grid lines to the scatter plot
     fig.update_layout(
         xaxis=dict(showgrid=True, zeroline=True),
         yaxis=dict(showgrid=True, zeroline=True),
     )
 
-    fig.update_xaxes({'zerolinecolor':'black'})
-    fig.update_yaxes({'zerolinecolor':'black'})
+    fig.update_xaxes({'zerolinecolor': 'black'})
+    fig.update_yaxes({'zerolinecolor': 'black'})
 
     fig.update_traces(marker=dict(size=10, line=dict(color='black', width=2), opacity=0.8))
 

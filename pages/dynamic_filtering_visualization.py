@@ -84,7 +84,13 @@ if 'food_counts_generated' in st.session_state and st.session_state.food_counts_
             st.write("#### Box Plot")
             selected_columns_boxplot = st.multiselect("Select columns to display", columns, None)
             selected_columns_boxplot.append('group')
-            box_plot_food_proportions(food_counts[selected_columns_boxplot], group_by)
+            st.sidebar.header("Select Group Colors")
+            groups = food_counts['group'].unique()  # Replace with actual group names
+
+            group_colors = {}
+            for group in groups:
+                group_colors[group] = st.sidebar.color_picker(f"Pick a color for {group}", "#0000FF")  # Default color is blue
+            box_plot_food_proportions(food_counts[selected_columns_boxplot], group_by=group_by, group_colors=group_colors)
 
         elif plot_type == "Heatmap":
             st.write("#### Heatmap")
