@@ -47,13 +47,7 @@ def bar_plot_food_counts(filtered_food_counts, group_by=False):
     st.plotly_chart(fig)
 
 
-def box_plot_food_proportions(filtered_food_counts, group_by=False):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    ax.set_xlabel('Food Type')
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-    ax.set_ylabel('Proportion')
-    ax.set_title('Proportion Distribution of Selected Food Types')
-
+def box_plot_food_proportions(filtered_food_counts, group_colors=None, group_by=False):
     if group_by:
         # Convert the dataframe to long-form, keeping 'group' as an identifier
         long_form_df = pd.melt(filtered_food_counts, id_vars='group', var_name='Food Type', value_name='Count')
@@ -68,15 +62,35 @@ def box_plot_food_proportions(filtered_food_counts, group_by=False):
         # Calculate the proportion of each group's count relative to the total count for each food type
         long_form_df['Proportion'] = long_form_df['Count'] / long_form_df['Total Count']
 
-        # Creating grouped box plot for proportions
-        fig = px.box(long_form_df, x='Food Type', y='Proportion', color='group', 
-                     title='Grouped Proportion Distribution of Selected Food Types', points='all')
+        fig = go.Figure()
+
+        # Iterate through each group to add traces, using offsetgroup to position them side by side
+        groups = long_form_df['group'].unique()
+        for i, group in enumerate(groups):
+            group_data = long_form_df[long_form_df['group'] == group]
+            fig.add_trace(go.Box(
+                x=group_data['Food Type'],
+                y=group_data['Proportion'],
+                name=group,
+                boxpoints='all',  # Show all points
+                jitter=0.3,       # Spread them out for visibility
+                pointpos=0,    # Position points inside the box
+                marker=dict(color=group_colors.get(group) if group_colors else None),
+                offsetgroup=i,    # Group each box plot trace by this offset
+            ))
+
+        fig.update_layout(
+            title='Grouped Proportion Distribution of Selected Food Types',
+            xaxis_title='Food Type',
+            yaxis_title='Proportion',
+            boxmode='group'  # Group mode for box plots, aligns them side by side
+        )
 
     else:
         # Calculate total counts for each food type
         total_counts = filtered_food_counts.sum().reset_index()
         total_counts.columns = ['Food Type', 'Total Count']
-        filtered_no_group = filtered_food_counts.loc[:, filtered_food_counts.columns!='group']
+        filtered_no_group = filtered_food_counts.loc[:, filtered_food_counts.columns != 'group']
         
         # Convert the dataframe to long-form
         long_form_df = pd.melt(filtered_no_group, var_name='Food Type', value_name='Count')
@@ -87,11 +101,26 @@ def box_plot_food_proportions(filtered_food_counts, group_by=False):
         # Calculate the proportion of each count relative to the total count for each food type
         long_form_df['Proportion'] = long_form_df['Count'] / long_form_df['Total Count']
 
-        # Creating regular box plot for proportions
-        fig = px.box(long_form_df, x='Food Type', y='Proportion', title='Proportion Distribution of Selected Food Types', points='all')
+        fig = go.Figure()
 
-    #st.write(filtered_food_counts.describe())
+        fig.add_trace(go.Box(
+            x=long_form_df['Food Type'],
+            y=long_form_df['Proportion'],
+            boxpoints='all',  # Show all points
+            jitter=0.3,       # Spread them out for visibility
+            pointpos=0,    # Position points inside the box
+            marker=dict(color='rgb(7,40,89)')
+        ))
+
+        fig.update_layout(
+            title='Proportion Distribution of Selected Food Types',
+            xaxis_title='Food Type',
+            yaxis_title='Proportion',
+        )
+
+    # Display the plot in Streamlit
     st.plotly_chart(fig)
+
 
 
 def show_heatmap(filtered_data, apply_clustering=False):
