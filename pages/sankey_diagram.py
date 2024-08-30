@@ -161,6 +161,8 @@ if hierarchical_levels_file and gnps_network_file:
 
     fig.update_layout(
         title_text="Sankey Diagram",
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
         font_size=15,
         width=width,
         height=height,
