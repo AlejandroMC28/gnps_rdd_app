@@ -97,14 +97,21 @@ gnps_network_file = st.file_uploader(
 
 data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
 
+use_demo = st.sidebar.checkbox("Use Demo Data")
 
-if gnps_network_file:
+if use_demo:
+    data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+    gnps_df = pd.read_csv(os.path.join(data_dir, 'demo_gnps_network.tsv'), sep='\t')
+
+if gnps_network_file or use_demo:
     st.write("""
     After uploading the necessary files, the Sankey diagram will be generated, showing the flow of food items through the selected hierarchical levels.
     This visualization helps you understand the distribution and composition of food samples across different categories.
     """)
-    
-    gnps_network = pd.read_csv(gnps_network_file, sep='\t')
+    if gnps_network_file:
+        gnps_network = pd.read_csv(gnps_network_file, sep='\t')
+    elif use_demo:
+        gnps_network = gnps_df
     #sample_type_hierarchy = pd.read_csv(hierarchical_levels_file, delimiter=';').set_index('descriptor').sort_values('order_num')
     sample_type_hierarchy = pd.read_csv(os.path.join(data_dir, 'sample_type_hierarchy.csv'),delimiter=';').set_index('descriptor').sort_values('order_num')
 
