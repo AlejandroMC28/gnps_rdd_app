@@ -88,10 +88,7 @@ max_hierarchy_flows = st.sidebar.slider(
     help="Choose the maximum hierarchy level to be included in the Sankey diagram. Higher levels provide more detailed categorization."
 )
 
-hierarchical_levels_file = st.file_uploader(
-    "Upload Hierarchy File", type=['txt', 'csv', 'tsv'],
-    help="Upload the file containing the hierarchical levels of food types and the color codes connected to them."
-)
+
 
 gnps_network_file = st.file_uploader(
     "Upload your molecular network file", type=["csv", "tsv"],
@@ -99,6 +96,7 @@ gnps_network_file = st.file_uploader(
 )
 
 data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+
 
 if gnps_network_file:
     st.write("""
@@ -159,7 +157,12 @@ if gnps_network_file:
             target=sorted_targets,
             value=values,
             color=link_colors
-        )
+        ),
+        textfont=dict(
+        color='black',
+        size=15,
+        family='Arial black'  # Use a bold font family
+    )
     )])
 
     fig.update_layout(
