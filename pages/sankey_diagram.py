@@ -190,5 +190,5 @@ if gnps_network_file:
 
 else:
     st.write("""
-    Please upload both the hierarchy file and the GNPS molecular network file to generate the Sankey diagram.
+    Please upload the GNPS molecular network file to generate the Sankey diagram.
     """)
