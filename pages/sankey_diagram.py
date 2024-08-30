@@ -75,7 +75,7 @@ st.sidebar.header("Settings")
 
 simple_complex_flows = st.sidebar.selectbox(
     "Select Food Type for flow visualization", ["all", "simple", "complex"],
-    help="Choose whether to include simple, complex, or all food types in the flow visualization."
+    help="Choose whether to include simple, complex, or all food types in the flow visualization.", index=1
 )
 
 groups_for_flows = st.sidebar.multiselect(
