@@ -21,7 +21,7 @@ page_file_path = 'pages/how_to_use.py'
 page = page_file_path.split('/')[1][0:-3]  # get "home"
 
 # Title and Introduction
-st.title("Welcome to the Foodomics Application")
+st.title("Welcome to the Reference Data Driven Foodomics Application")
 st.write("""
 This application is designed to help you gain powerful insights from your metabolomics data by leveraging **Reference Data-Driven (RDD) metabolomics**. 
 RDD enhances the interpretability of untargeted metabolomics by integrating curated reference datasets with detailed metadata, allowing for more contextual and meaningful analysis.
