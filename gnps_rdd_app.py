@@ -3,19 +3,19 @@ import streamlit as st
 from streamlit_navigation_bar import st_navbar
 import pages as pg
 import importlib
-import home
+import pages.home as home
 import pages.PCA
 import pages.sankey_diagram
 import pages.dynamic_filtering_visualization
 import pages.create_food_counts
 
-importlib.reload(home)
+""" importlib.reload(pages.home)
 importlib.reload(pages.PCA)
 importlib.reload(pages.sankey_diagram)
 importlib.reload(pages.dynamic_filtering_visualization)
 importlib.reload(pages.create_food_counts)
 # Force reload of modules during development
-importlib.reload(pg)
+importlib.reload(pg) """
 
 
 st.set_page_config(page_title="GNPS-RDD app", page_icon="🍋", initial_sidebar_state="auto")

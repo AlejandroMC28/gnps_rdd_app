@@ -17,7 +17,7 @@ if page == "How to use":
     st.switch_page("pages/how_to_use.py")
 
 app_path = 'https://gnps-rdd.streamlit.app/'
-page_file_path = 'pages/how_to_use.py'
+page_file_path = 'pages/'
 page = page_file_path.split('/')[1][0:-3]  # get "home"
 
 # Title and Introduction

@@ -56,7 +56,7 @@ if use_demo:
         # Option to download the raw demo data
     st.download_button(
         label="Download Raw Demo Data",
-        data=gnps_df.to_csv(index=False).encode('utf-8'),
+        data=gnps_df.to_csv(index=False, sep ='\t').encode('utf-8'),
         file_name='demo_gnps_network.tsv',
         mime='text/tsv'
     )
