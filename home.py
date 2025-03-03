@@ -3,9 +3,9 @@ from streamlit_navigation_bar import st_navbar
 
 st.set_page_config(initial_sidebar_state="collapsed", page_icon="🍋")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'Home')
+page = st_navbar(["Home", "Create count table", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'Home')
 
-if page == "Create Food Counts":
+if page == "Create count table":
     st.switch_page("pages/create_food_counts.py")
 if page == "Visualization":
     st.switch_page("pages/dynamic_filtering_visualization.py")
@@ -21,14 +21,15 @@ page_file_path = 'pages/'
 page = page_file_path.split('/')[1][0:-3]  # get "home"
 
 # Title and Introduction
-st.title("Welcome to the Reference Data Driven Foodomics Application")
+st.title("Welcome to the Reference Data Driven Metabolomics Application")
 st.write("""
 This application is designed to help you gain powerful insights from your metabolomics data by leveraging **Reference Data-Driven (RDD) metabolomics**. 
 RDD enhances the interpretability of untargeted metabolomics by integrating curated reference datasets with detailed metadata, allowing for more contextual and meaningful analysis.
 """)
 
 # About the Foodomics Dataset
-st.header("About the Foodomics Dataset")
+st.header("Choosing a Reference Dataset")
+st.subheader("Global Foodomics")
 st.write("""
 The Foodomics dataset is a comprehensive collection of over **3,000 food items**, organized into a detailed **seven-level ontology**. This dataset, which includes rich metadata on the geographical origin, processing methods, and dietary sources, 
 is foundational to the insights you can gain from this application. By exploring this dataset, you can delve into various food samples and human biospecimens, identifying complex relationships and dietary patterns.

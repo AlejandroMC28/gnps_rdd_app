@@ -7,7 +7,7 @@ import io
 
 st.set_page_config(initial_sidebar_state="auto")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= 'Create Food Counts')
+page = st_navbar(["Home", "Create count table", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= "Create count table")
 
 if page == "PCA":
     st.switch_page("pages/PCA.py")
@@ -20,22 +20,22 @@ if page == "Sankey Diagram":
 if page == "How to use":
     st.switch_page("pages/how_to_use.py")
 
-st.title("Generate Food Counts")
+st.title("Generate RDD Counts")
 
 st.write("""
-The "Generate Food Counts" tab allows you to create a detailed table of food counts based on your GNPS molecular network data. 
+The "Generate RDDCounts" tab allows you to create a detailed table of spectral counts based on your GNPS molecular network data. 
 This table links each sample in your data to the relevant metadata, facilitating in-depth analysis and visualization of your metabolomics data.
 """)
 
 st.sidebar.header("Settings")
 all_groups = st.sidebar.multiselect("Select all groups (e.g., G1, G2)", options=['G1', 'G2', 'G5', 'G6'], default=['G1'], help="These are the groups related to the sample data")
 some_groups = st.sidebar.multiselect("Select some groups (e.g., G3, G4)", options=['G3', 'G4'], default=['G4'], help="These are the groups related to the reference data")
-simple_complex = st.sidebar.selectbox("Select food type", ['all', 'simple', 'complex'], help="Choose whether to include simple, complex, or all food types in the counts generation.")
+simple_complex = st.sidebar.selectbox("Select reference type", ['all', 'simple', 'complex'], help="Choose whether to include simple, complex, or all types in the counts generation.")
 
 st.sidebar.write("""
 ### Understanding Metadata Hierarchy Levels
 The metadata used in this application is organized into a seven-level hierarchy, allowing you to analyze your data at varying levels of detail. 
-From broad categories to specific food items, these levels help you tailor your analysis to the specific needs of your research.
+From broad categories to specific items, these levels help you tailor your analysis to the specific needs of your research.
 """)
 
 use_demo = st.sidebar.checkbox("Use Demo Data")
@@ -69,18 +69,18 @@ else:
         st.write(gnps_df.head())
 
 if 'gnps_df' in st.session_state:
-    if st.button("Generate Food Counts"):
+    if st.button("Generate RDD Counts"):
         food_counts = get_dataset_food_counts_all(st.session_state.gnps_df, simple_complex, all_groups, some_groups)
         st.session_state.food_counts = food_counts
-        st.write('Generated food counts:')
+        st.write('Generated RDD counts:')
         st.session_state.food_counts_generated = True
 
 if 'food_counts_generated' in st.session_state and st.session_state.food_counts_generated and use_demo == False:
-    st.write("Food counts have been generated. You can now use other metadata.")
+    st.write("RDD counts have been generated. You can now use other metadata.")
 
 
 
-    sample_file = st.file_uploader('Upload food metadata', type=["csv", "tsv"])
+    sample_file = st.file_uploader('Upload metadata', type=["csv", "tsv"])
     if sample_file is not None:
         sample_metadata = pd.read_csv(sample_file, sep='\t' if sample_file.name.endswith('.tsv') else ',')
         st.session_state.sample_metadata = sample_metadata
@@ -111,15 +111,15 @@ elif  'food_counts_generated' in st.session_state and st.session_state.food_coun
     combined_df = combined_df.drop(columns=['new_group'])
     combined_df['group'] = combined_df['group'].replace({'G1': 'Omnivore', 'G2': 'Vegan'})
     st.session_state.food_counts = combined_df
-    st.write("Food counts have been generated.")
+    st.write("RDD counts have been generated.")
 
 if 'food_counts' in st.session_state:
     st.write(st.session_state.food_counts.head())
-    st.write("You can download the generated food count table for further analysis.")
+    st.write("You can download the generated count table for further analysis.")
     st.download_button(
-        label="Download Food Counts",
+        label="Download RDD Counts",
         data=st.session_state.food_counts.to_csv(index=False).encode('utf-8'),
-        file_name='food_counts.csv',
+        file_name='rdd_counts.csv',
         mime='text/csv'
     )
 

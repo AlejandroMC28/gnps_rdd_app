@@ -3,11 +3,11 @@ from streamlit_navigation_bar import st_navbar
 
 st.set_page_config(initial_sidebar_state="collapsed")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= "How to use")
+page = st_navbar(["Home", "Create count table", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected= "How to use")
 
 if page == "PCA":
     st.switch_page("pages/PCA.py")
-if page == "Create Food Counts":
+if page == "Create count table":
     st.switch_page("pages/create_food_counts.py")
 if page == "Home":
     st.switch_page("home.py")

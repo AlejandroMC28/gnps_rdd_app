@@ -20,7 +20,7 @@ importlib.reload(pg) """
 
 st.set_page_config(page_title="GNPS-RDD app", page_icon="🍋", initial_sidebar_state="auto")
 
-pages = ['Home', 'Create Food Counts', 'Dynamic filtering & visualization', "PCA", "Sankey Diagram"]
+pages = ['Home', 'Create count table', 'Dynamic filtering & visualization', "PCA", "Sankey Diagram"]
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 

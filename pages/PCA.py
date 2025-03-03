@@ -9,9 +9,9 @@ from sklearn.preprocessing import StandardScaler
 
 st.set_page_config(initial_sidebar_state="auto")
 
-page = st_navbar(["Home", "Create Food Counts", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected='PCA')
+page = st_navbar(["Home", "Create count table", "Visualization", "PCA", "Sankey Diagram", "How to use"], selected='PCA')
 
-if page == "Create Food Counts":
+if page == "Create count table":
     st.switch_page("pages/create_food_counts.py")
 if page == "Visualization":
     st.switch_page("pages/dynamic_filtering_visualization.py")
