@@ -14,3 +14,5 @@ scikit-bio>=0.5.9   # CLR transformation
 # pyarrow is auto-installed by pandas ≥2 for fast parquet/feather,
 # but including it avoids the “optional dependency” warning.
 pyarrow>=15.0
+# ─── new line ───
+setuptools>=68.0    
