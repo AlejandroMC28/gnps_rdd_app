@@ -892,99 +892,69 @@ class PlotlyBackend(VisualizationBackend):
     def plot_sankey(
         self,
         RDD_counts: "RDDCounts",
-        color_mapping_file: str,
+        color_mapping_file: Optional[str] = None,   # NOW OPTIONAL
         max_hierarchy_level: Optional[int] = None,
         filename_filter: Optional[str] = None,
         dark_mode: bool = False,
     ) -> go.Figure:
-        """
-        Visualize the RDD flows as a Sankey diagram using Plotly.
-
-        Parameters
-        ----------
-        RDD_counts : RDDCounts
-            An instance of RDDCounts containing the RDD counts data.
-        color_mapping_file : str
-            CSV file mapping the sample types to their respective colors.
-        max_hierarchy_level : int, optional
-            Maximum ontology level to calculate flows for. Defaults to all levels.
-        filename_filter : str, optional
-            Specific sample filename to filter by. If None, uses the full data.
-        dark_mode : bool, optional
-            If True, apply a dark background theme. Defaults to False.
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The figure object for the Sankey diagram.
-        """
-        # Generate flows and processes using RDDCounts
+        """Render a Sankey diagram.  Colour CSV is now optional."""
+        # 1 Generate flows / processes
         flows_df, processes_df = RDD_counts.generate_RDDflows(
             max_hierarchy_level=max_hierarchy_level,
             filename_filter=filename_filter,
         )
 
-        # Sort nodes to minimize crossings
+        # 2 Sort nodes for nicer layout
         sorted_nodes, node_indices = sort_nodes_by_flow(flows_df, processes_df)
 
-        # Map flows to sorted indices
-        source_indices = flows_df["source"].map(node_indices)
-        target_indices = flows_df["target"].map(node_indices)
-        values = flows_df["value"]
+        src_idx  = flows_df["source"].map(node_indices)
+        tgt_idx  = flows_df["target"].map(node_indices)
+        values   = flows_df["value"]
 
-        # Load and verify the color mapping
-        color_df = pd.read_csv(color_mapping_file, sep=";")
-        color_df["color_code"] = color_df["color_code"].fillna("#D3D3D3")
-        color_mapping = {
-            row["descriptor"]: row["color_code"]
-            for _, row in color_df.iterrows()
-        }
+        # 3 Read colour map OR fallback to greys
+        if color_mapping_file:
+            cdf = pd.read_csv(color_mapping_file, sep=";")
+            cdf["color_code"] = cdf["color_code"].fillna("#D3D3D3")
+            colour_map = {row["descriptor"]: row["color_code"] for _, row in cdf.iterrows()}
+        else:
+            colour_map = {}                     # empty → greyscale fallback
 
-        # Assign colors to nodes and links
-        node_colors = [
-            color_mapping.get(node, "#D3D3D3") for node in sorted_nodes
-        ]
-        link_colors = [
-            color_mapping.get(node, "#D3D3D3") for node in flows_df["source"]
-        ]
+        node_colours = [colour_map.get(node, "#A9A9A9") for node in sorted_nodes]
+        link_colours = [colour_map.get(src,  "#A9A9A9") for src  in flows_df["source"]]
 
-        # Create Sankey diagram
+        # 4 Build plotly figure
         fig = go.Figure(
             data=[
                 go.Sankey(
                     node=dict(
-                        pad=15,
-                        thickness=20,
+                        pad=15, thickness=20,
                         line=dict(color="black", width=0.5),
                         label=sorted_nodes,
-                        color=node_colors,
+                        color=node_colours,
                     ),
                     link=dict(
-                        source=source_indices,
-                        target=target_indices,
+                        source=src_idx,
+                        target=tgt_idx,
                         value=values,
-                        color=link_colors,
+                        color=link_colours,
                     ),
                 )
             ]
         )
 
-        # Apply dark or light theme
+        # 5 Theme
         if dark_mode:
             fig.update_layout(
                 title_text="RDD Flows Sankey Diagram",
-                font=dict(color="white", size=12),
+                font=dict(color="white"),
                 paper_bgcolor="black",
                 plot_bgcolor="black",
             )
         else:
             fig.update_layout(
                 title_text="RDD Flows Sankey Diagram",
-                font=dict(color="black", size=12),
-                paper_bgcolor="white",
-                plot_bgcolor="white",
+                template="plotly_white",
             )
-
         return fig
 
 

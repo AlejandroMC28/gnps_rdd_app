@@ -1,62 +1,54 @@
 # pages/04_Sankey_Diagram.py
-import os
-import sys
-
-import streamlit as st
+import os, sys, tempfile, streamlit as st
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-SRC = os.path.join(ROOT, "src")
+SRC  = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from src.visualization import Visualizer, PlotlyBackend  # noqa: E402
-from src.RDDcounts import RDDCounts  # noqa: E402
+from src.visualization import Visualizer, PlotlyBackend   # noqa: E402
 
 st.header("Sankey Diagram")
 
+# ── guard: need the RDDCounts object ───────────────────────────────────
 if "rdd" not in st.session_state:
-    st.warning("Please create an RDDCounts object first.")
+    st.warning("Please create an RDD count table first.")
     st.stop()
 
-rdd: RDDCounts = st.session_state["rdd"]
+rdd = st.session_state["rdd"]
+viz = Visualizer(PlotlyBackend())          # Sankey supported only in Plotly
 
-# ---------- controls ---------- #
-sample = st.selectbox(
+# ── user controls ──────────────────────────────────────────────────────
+sample_choice = st.selectbox(
     "Filter by sample filename (optional)",
-    options=["<all samples>"] + sorted(rdd.counts["filename"].unique().tolist()),
+    ["<all samples>"] + sorted(rdd.counts["filename"].unique())
 )
+
 max_level = st.number_input(
-    "Maximum hierarchy level (blank = all)",
-    min_value=1,
-    max_value=rdd.levels,
-    step=1,
-    value=rdd.levels,
+    "Maximum hierarchy level", 1, rdd.levels, rdd.levels, step=1
 )
-color_csv = st.file_uploader(
-    "Color mapping CSV (`descriptor;color_code`)", type=("csv", "txt", "tsv")
+
+color_map_up = st.file_uploader(
+    "Colour-mapping CSV (`descriptor;color_code`, optional)",
+    type=("csv", "tsv", "txt")
 )
-dark_mode = st.checkbox("Dark mode", value=False)
-draw = st.button("Draw Sankey")
 
-# ---------- plot ---------- #
-if draw:
-    if color_csv is None:
-        st.error("Please upload a color-mapping CSV.")
-        st.stop()
+dark_mode = st.checkbox("Dark mode")
 
-    # Save color mapping to temp
-    import tempfile
+# ── draw button ────────────────────────────────────────────────────────
+if st.button("Draw Sankey"):
+    # persist colour map only if provided
+    colour_path = None
+    if color_map_up:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+            tmp.write(color_map_up.getbuffer())
+            colour_path = tmp.name
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-        tmp.write(color_csv.read())
-        color_path = tmp.name
-
-    viz = Visualizer(PlotlyBackend())
     fig = viz.plot_sankey(
-        RDD_counts=rdd,
-        color_mapping_file=color_path,
+        rdd,
+        color_mapping_file=colour_path,                      # may be None
         max_hierarchy_level=max_level or None,
-        filename_filter=None if sample == "<all samples>" else sample,
+        filename_filter=None if sample_choice == "<all samples>" else sample_choice,
         dark_mode=dark_mode,
     )
     st.plotly_chart(fig, use_container_width=True)
