@@ -34,14 +34,8 @@ def _load_RDD_metadata(
     """
     if external_metadata:
         if not external_metadata.lower().endswith((".csv", ".tsv", ".txt")):
-            raise ValueError(
-                "External metadata file must be a CSV, TSV, or TXT."
-            )
-        sep = (
-            "\t"
-            if external_metadata.lower().endswith((".tsv", ".txt"))
-            else ","
-        )
+            raise ValueError("External metadata file must be a CSV, TSV, or TXT.")
+        sep = "\t" if external_metadata.lower().endswith((".tsv", ".txt")) else ","
         try:
             reference_metadata = pd.read_csv(external_metadata, sep=sep)
         except FileNotFoundError:
@@ -108,15 +102,13 @@ def _load_sample_types(
     # Rename user-defined ontology columns
     renamed_columns = [f"{col}{i+1}" for i, col in enumerate(ontology_columns)]
     renamer = dict(zip(ontology_columns, renamed_columns))
-    df = reference_metadata[
-        ["filename", "sample_name", *ontology_columns]
-    ].rename(columns=renamer)
+    df = reference_metadata[["filename", "sample_name", *ontology_columns]].rename(
+        columns=renamer
+    )
     return df.set_index("filename"), renamed_columns
 
 
-def _validate_groups(
-    gnps_network: pd.DataFrame, groups_included: List[str]
-) -> None:
+def _validate_groups(gnps_network: pd.DataFrame, groups_included: List[str]) -> None:
     """
     Validates that the provided group names exist in the GNPS network data.
 
@@ -164,9 +156,7 @@ def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
 
     if "UniqueFileSources" in network.columns:
         groups = {f"G{i}" for i in range(1, 7)}
-        groups_excluded = list(
-            groups - set([*sample_groups, *reference_groups])
-        )
+        groups_excluded = list(groups - set([*sample_groups, *reference_groups]))
         df_selected = gnps_network[
             (gnps_network[sample_groups] > 0).all(axis=1)
             & (gnps_network[reference_groups] > 0).any(axis=1)
@@ -181,17 +171,11 @@ def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
             .drop_duplicates()
             .reset_index(drop=True)
         )
-        df_normalized.rename(
-            columns={"cluster index": "cluster_index"}, inplace=True
-        )
-        df_normalized["filename"] = remove_filename_extension(
-            df_normalized["filename"]
-        )
+        df_normalized.rename(columns={"cluster index": "cluster_index"}, inplace=True)
+        df_normalized["filename"] = remove_filename_extension(df_normalized["filename"])
         return df_normalized
     else:
-        network["#Filename"] = network["#Filename"].str.replace(
-            "input_spectra/", ""
-        )
+        network["#Filename"] = network["#Filename"].str.replace("input_spectra/", "")
         network.rename(
             columns={"#Filename": "filename", "#ClusterIdx": "cluster_index"},
             inplace=True,
@@ -201,9 +185,7 @@ def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
             .drop_duplicates()
             .reset_index(drop=True)
         )
-        df_normalized["filename"] = remove_filename_extension(
-            df_normalized["filename"]
-        )
+        df_normalized["filename"] = remove_filename_extension(df_normalized["filename"])
 
         return df_normalized
 
@@ -241,16 +223,10 @@ def get_sample_metadata(
 
     if external_sample_metadata:
 
-        if not external_sample_metadata.lower().endswith(
-            (".csv", ".tsv", ".txt")
-        ):
-            raise ValueError(
-                "External metadata file must be a CSV, TSV, or TXT."
-            )
+        if not external_sample_metadata.lower().endswith((".csv", ".tsv", ".txt")):
+            raise ValueError("External metadata file must be a CSV, TSV, or TXT.")
         sep = (
-            "\t"
-            if external_sample_metadata.lower().endswith((".tsv", ".txt"))
-            else ","
+            "\t" if external_sample_metadata.lower().endswith((".tsv", ".txt")) else ","
         )
         try:
             sample_metadata = pd.read_csv(external_sample_metadata, sep=sep)
@@ -258,9 +234,7 @@ def get_sample_metadata(
             raise FileNotFoundError(
                 f"External metadata file '{external_sample_metadata}' not found."
             )
-        sample_metadata.rename(
-            columns={filename_col: "filename"}, inplace=True
-        )
+        sample_metadata.rename(columns={filename_col: "filename"}, inplace=True)
         sample_metadata["filename"] = remove_filename_extension(
             sample_metadata["filename"]
         )
@@ -269,17 +243,13 @@ def get_sample_metadata(
         df_filtered = raw_gnps_network[
             ~raw_gnps_network["DefaultGroups"].str.contains(",")
         ]
-        df_selected = df_filtered[
-            df_filtered["DefaultGroups"].isin(sample_groups)
-        ]
+        df_selected = df_filtered[df_filtered["DefaultGroups"].isin(sample_groups)]
         df_exploded_files = df_selected.assign(
             UniqueFileSources=df_selected["UniqueFileSources"].str.split("|")
         ).explode("UniqueFileSources")
         sample_metadata = df_exploded_files[
             ["DefaultGroups", "UniqueFileSources"]
-        ].rename(
-            columns={"DefaultGroups": "group", "UniqueFileSources": "filename"}
-        )
+        ].rename(columns={"DefaultGroups": "group", "UniqueFileSources": "filename"})
         sample_metadata["filename"] = remove_filename_extension(
             sample_metadata["filename"]
         )
@@ -365,9 +335,7 @@ def remove_filename_extension(filename_col):
     return filename_col.str.replace(r"\.[^.]+$", "", regex=True)
 
 
-def RDD_counts_to_wide(
-    RDD_counts: pd.DataFrame, level: int = None
-) -> pd.DataFrame:
+def RDD_counts_to_wide(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFrame:
     """
     Convert the RDD counts dataframe from long to wide format for a specific
     ontology level, with 'group' as part of the columns. If the data is already
@@ -402,9 +370,7 @@ def RDD_counts_to_wide(
             raise ValueError(
                 "Multiple levels found in the data. Please specify a level to convert to wide format."
             )
-        level = levels_in_data[
-            0
-        ]  # If the data is already filtered, use that level
+        level = levels_in_data[0]  # If the data is already filtered, use that level
 
     # Filter the RDD counts dataframe by the specified level, if not already filtered
     filtered_RDD_counts = RDD_counts[RDD_counts["level"] == level]
@@ -434,9 +400,7 @@ def RDD_counts_to_wide(
     return wide_format_RDD_counts
 
 
-def calculate_proportions(
-    RDD_counts: pd.DataFrame, level: int = None
-) -> pd.DataFrame:
+def calculate_proportions(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFrame:
     """
     Calculate the proportion of each reference type within each sample for a given
     level.
@@ -470,9 +434,7 @@ def calculate_proportions(
             raise ValueError(
                 "Multiple levels found in the data. Please specify a level to calculate proportions."
             )
-        level = levels_in_data[
-            0
-        ]  # If the data is already filtered, use that level
+        level = levels_in_data[0]  # If the data is already filtered, use that level
 
     # Use the existing function to convert to wide format
     df_wide = RDD_counts_to_wide(RDD_counts, level)

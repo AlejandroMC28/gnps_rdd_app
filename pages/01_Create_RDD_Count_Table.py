@@ -4,12 +4,12 @@ import pandas as pd
 import streamlit as st
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-SRC  = os.path.join(ROOT, "src")
+SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from src.RDDcounts import RDDCounts          # noqa: E402
-from src.state_helpers import set_group      # noqa: E402
+from src.RDDcounts import RDDCounts  # noqa: E402
+from src.state_helpers import set_group  # noqa: E402
 
 
 # ────────────────────── helpers ──────────────────────
@@ -30,9 +30,15 @@ def _persist(upload):
 # ────────────────────── UI ──────────────────────
 st.header("Create RDD Count Table")
 
-gnps_file      = st.file_uploader("GNPS molecular network (.csv / .tsv)", type=("csv", "tsv"))
-sample_meta_up = st.file_uploader("Sample metadata (optional)", type=("csv", "tsv", "txt"))
-ref_meta_up    = st.file_uploader("Reference metadata (optional)", type=("csv", "tsv", "txt"))
+gnps_file = st.file_uploader(
+    "GNPS molecular network (.csv / .tsv)", type=("csv", "tsv")
+)
+sample_meta_up = st.file_uploader(
+    "Sample metadata (optional)", type=("csv", "tsv", "txt")
+)
+ref_meta_up = st.file_uploader(
+    "Reference metadata (optional)", type=("csv", "tsv", "txt")
+)
 
 # -------- discover grouping options --------
 sample_group_col = "group"
@@ -40,8 +46,11 @@ sample_groups_sel = []
 
 if sample_meta_up:
     meta_df = _read_any(sample_meta_up)
-    sample_group_col = st.selectbox("Column to group by", meta_df.columns,
-                                    index=list(meta_df.columns).index("group") if "group" in meta_df.columns else 0)
+    sample_group_col = st.selectbox(
+        "Column to group by",
+        meta_df.columns,
+        index=list(meta_df.columns).index("group") if "group" in meta_df.columns else 0,
+    )
     sample_groups_sel = st.multiselect(
         "Sample groups to include",
         sorted(meta_df[sample_group_col].dropna().unique()),
@@ -57,11 +66,13 @@ elif gnps_file:
         )
 
 # -------- other parameters --------
-sample_type   = st.selectbox("Reference sample type", ("all", "simple", "complex"))
+sample_type = st.selectbox("Reference sample type", ("all", "simple", "complex"))
 ontology_cols = st.text_input("Custom ontology columns (comma-separated)", "")
-levels_val    = st.number_input("Maximum ontology levels to analyse", 1, 10, 6, 1)
+levels_val = st.number_input("Maximum ontology levels to analyse", 1, 10, 6, 1)
 
-if ontology_cols and levels_val > len([c for c in ontology_cols.split(",") if c.strip()]):
+if ontology_cols and levels_val > len(
+    [c for c in ontology_cols.split(",") if c.strip()]
+):
     st.warning("Reducing 'levels' to match number of ontology columns.")
     levels_val = len([c for c in ontology_cols.split(",") if c.strip()])
 
@@ -71,9 +82,9 @@ if st.button("Generate RDD Counts"):
         st.error("GNPS file required.")
         st.stop()
 
-    gnps_path     = _persist(gnps_file)
+    gnps_path = _persist(gnps_file)
     sample_meta_p = _persist(sample_meta_up) if sample_meta_up else None
-    ref_meta_p    = _persist(ref_meta_up)    if ref_meta_up    else None
+    ref_meta_p = _persist(ref_meta_up) if ref_meta_up else None
     ontology_list = [c.strip() for c in ontology_cols.split(",") if c.strip()]
 
     try:
@@ -86,7 +97,7 @@ if st.button("Generate RDD Counts"):
             external_reference_metadata=ref_meta_p,
             external_sample_metadata=sample_meta_p,
             ontology_columns=ontology_list or None,
-            reference_groups=None,     # not used
+            reference_groups=None,  # not used
         )
 
         # make chosen column the live group

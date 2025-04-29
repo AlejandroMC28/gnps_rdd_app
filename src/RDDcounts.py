@@ -70,21 +70,17 @@ class RDDCounts:
         self.levels = levels
         self.sample_group_col = sample_group_col
 
-        self.reference_metadata = _load_RDD_metadata(
-            external_reference_metadata
-        )
+        self.reference_metadata = _load_RDD_metadata(external_reference_metadata)
         self.sample_metadata = get_sample_metadata(
             self.raw_gnps_network,
             sample_groups,
             external_sample_metadata,
             filename_col="filename",
         )
-        self.sample_types_df, self.ontology_columns_renamed = (
-            _load_sample_types(
-                self.reference_metadata,
-                sample_types,
-                ontology_columns=ontology_columns,
-            )
+        self.sample_types_df, self.ontology_columns_renamed = _load_sample_types(
+            self.reference_metadata,
+            sample_types,
+            ontology_columns=ontology_columns,
         )
         self.normalized_network = normalize_network(
             self.raw_gnps_network, self.sample_groups, self.reference_groups
@@ -225,9 +221,7 @@ class RDDCounts:
             RDD_counts_file_level
         ]  # Initialize a list for storing data at all levels
         if "reference_type" not in RDD_counts_file_level.columns:
-            raise ValueError(
-                "Expected 'reference_type' column in file-level counts."
-            )
+            raise ValueError("Expected 'reference_type' column in file-level counts.")
         RDD_counts_file_level_sample_types = RDD_counts_file_level.merge(
             self.sample_types_df,
             left_on="reference_type",
@@ -243,9 +237,9 @@ class RDDCounts:
             ontology_col = self._get_ontology_column_for_level(level)
 
             RDD_counts_level = (
-                RDD_counts_file_level_sample_types.groupby(
-                    ["filename", ontology_col]
-                )["count"]
+                RDD_counts_file_level_sample_types.groupby(["filename", ontology_col])[
+                    "count"
+                ]
                 .sum()
                 .reset_index()
             )
@@ -262,9 +256,9 @@ class RDDCounts:
                 columns_to_modify = wide_format_counts.columns.difference(
                     ["filename", "water"]
                 )
-                wide_format_counts.loc[
+                wide_format_counts.loc[:, columns_to_modify] = wide_format_counts.loc[
                     :, columns_to_modify
-                ] = wide_format_counts.loc[:, columns_to_modify].where(
+                ].where(
                     wide_format_counts.loc[:, columns_to_modify].gt(
                         water_counts, axis=0
                     ),
@@ -286,9 +280,7 @@ class RDDCounts:
 
             RDD_counts_all_levels.append(RDD_counts_level)
 
-        RDD_counts_all_levels = pd.concat(
-            RDD_counts_all_levels, ignore_index=True
-        )
+        RDD_counts_all_levels = pd.concat(RDD_counts_all_levels, ignore_index=True)
 
         # Map group information from the sample_metadata to the final DataFrame
         RDD_counts_all_levels["group"] = RDD_counts_all_levels["filename"].map(
@@ -296,9 +288,7 @@ class RDDCounts:
         )
 
         # Cast 'count' as an integer
-        RDD_counts_all_levels["count"] = RDD_counts_all_levels["count"].astype(
-            int
-        )
+        RDD_counts_all_levels["count"] = RDD_counts_all_levels["count"].astype(int)
 
         return RDD_counts_all_levels
 
@@ -375,15 +365,11 @@ class RDDCounts:
             )
 
         # Create a mapping from filename to new group
-        filename_to_group = metadata.set_index("filename")[
-            merge_column
-        ].to_dict()
+        filename_to_group = metadata.set_index("filename")[merge_column].to_dict()
 
         # Update the 'group' column in counts
         self.counts["group"] = (
-            self.counts["filename"]
-            .map(filename_to_group)
-            .fillna(self.counts["group"])
+            self.counts["filename"].map(filename_to_group).fillna(self.counts["group"])
         )
 
         # Update the sample_metadata
@@ -418,9 +404,7 @@ class RDDCounts:
         """
         # Use provided max_hierarchy_level or default to the instance's levels
         max_level = (
-            max_hierarchy_level
-            if max_hierarchy_level is not None
-            else self.levels
+            max_hierarchy_level if max_hierarchy_level is not None else self.levels
         )
 
         # Filter counts by filename if a filter is specified
@@ -477,9 +461,7 @@ class RDDCounts:
 
         # Build processes from unique nodes in flows
         all_nodes = (
-            pd.concat([flows_df["source"], flows_df["target"]])
-            .dropna()
-            .unique()
+            pd.concat([flows_df["source"], flows_df["target"]]).dropna().unique()
         )
         processes_df = pd.DataFrame(
             {
