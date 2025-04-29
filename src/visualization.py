@@ -1,1185 +1,362 @@
+# ─────────────────────────────────────────────────────────────────────
 # visualization.py
+#
+# • MatplotlibBackend  – static figures
+# • PlotlyBackend      – interactive figures (incl. upgraded Sankey)
+# • Visualizer         – façade that delegates to the chosen backend
+# ─────────────────────────────────────────────────────────────────────
 
-# Standard library imports
-import os
+# --- standard -------------------------------------------------------
 from collections import defaultdict
-from typing import List, Optional, Union, Tuple, Dict
-from importlib import resources
-
-# Third-party imports
-import matplotlib.pyplot as plt
-import matplotlib.figure
-import seaborn as sns
+from textwrap import shorten
+from typing import List, Optional, Tuple
+# --- third-party ----------------------------------------------------
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
-
-
-# Internal imports
+# --- internal -------------------------------------------------------
 from RDDcounts import RDDCounts
-from utils import RDD_counts_to_wide, calculate_proportions
+from utils import calculate_proportions
+# -------------------------------------------------------------------
+#  helpers
+# -------------------------------------------------------------------
+def _ideal_font_colour(hex_colour: str) -> str:
+    """Return 'black' or 'white' for best contrast against hex colour."""
+    h = hex_colour.lstrip("#")
+    if len(h) == 3:
+        h = "".join(2 * c for c in h)
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
+    return "black" if (r * 299 + g * 587 + b * 114) / 1000 > 128 else "white"
 
 
-def sort_nodes_by_flow(flows_df, processes_df):
-    """
-    Sort nodes to minimize crossings in a Sankey diagram.
-
-    Parameters
-    ----------
-    flows_df : pd.DataFrame
-        DataFrame containing 'source', 'target', and 'value' columns.
-    processes_df : pd.DataFrame
-        DataFrame containing 'id' and 'level' columns for hierarchical levels.
-
-    Returns
-    -------
-    sorted_nodes : list
-        List of node names sorted to minimize crossings.
-    node_indices : dict
-        Mapping of node names to their sorted indices.
-    """
-    # Handle missing "id" column by using unique nodes from flows_df
+def sort_nodes_by_flow(flows_df: pd.DataFrame, processes_df: pd.DataFrame):
+    """Heuristic node ordering to reduce Sankey crossings."""
     if "id" not in processes_df.columns:
-        unique_nodes = pd.concat([flows_df["source"], flows_df["target"]]).unique()
-        processes_df = pd.DataFrame(
-            {"id": unique_nodes, "level": 0}
-        )  # Assign default level
-
-    # Ensure "level" column exists
+        uniq = pd.concat([flows_df["source"], flows_df["target"]]).unique()
+        processes_df = pd.DataFrame({"id": uniq, "level": 0})
     if "level" not in processes_df.columns:
-        processes_df["level"] = 0  # Default to level 0 if missing
+        processes_df["level"] = 0
 
-    # Define levels based on the processes DataFrame
-    levels_new = processes_df.set_index("id")["level"].to_dict()
-    nodes_per_level_new = defaultdict(list)
-    for node, level in levels_new.items():
-        nodes_per_level_new[level].append(node)
+    lvl_map = processes_df.set_index("id")["level"].to_dict()
+    per_lvl  = defaultdict(list)
+    for node, lvl in lvl_map.items():
+        per_lvl[lvl].append(node)
 
-    # Calculate cumulative flow values
-    cumulative_outgoing_new = defaultdict(int)
-    for _, row in flows_df.iterrows():
-        cumulative_outgoing_new[row["source"]] += row["value"]
+    out_sum = flows_df.groupby("source")["value"].sum().to_dict()
+    first   = min(per_lvl)
+    ordered = {first: sorted(per_lvl[first], key=lambda n: out_sum.get(n, 0), reverse=True)}
 
-    # Sort nodes per level
-    sorted_nodes_per_level_new = {}
+    for lvl in range(first + 1, max(per_lvl) + 1):
+        if lvl not in per_lvl:
+            continue
+        prev = ordered[lvl - 1]
+        cur  = per_lvl[lvl]
+        conn = defaultdict(list)
+        for s, t, v in flows_df[["source", "target", "value"]].values:
+            if s in prev and t in cur:
+                conn[s].append((t, v))
+        cur_sorted = []
+        for p in prev:
+            cur_sorted += [t for t, _ in sorted(conn[p], key=lambda x: x[1], reverse=True)]
+        cur_sorted += list(set(cur) - set(cur_sorted))
+        ordered[lvl] = cur_sorted
 
-    # First level: Sort by outgoing flow value (descending)
-    first_level_new = min(nodes_per_level_new.keys())
-    sorted_nodes_per_level_new[first_level_new] = sorted(
-        nodes_per_level_new[first_level_new],
-        key=lambda x: cumulative_outgoing_new[x],
-        reverse=True,
-    )
-
-    # Subsequent levels: Align with previous levels
-    for level in range(first_level_new + 1, max(nodes_per_level_new.keys()) + 1):
-        if level in nodes_per_level_new:
-            previous_level_nodes = sorted_nodes_per_level_new[level - 1]
-            current_level_nodes = nodes_per_level_new[level]
-
-            # Map connections to the current level
-            connections_new = defaultdict(list)
-            for _, row in flows_df.iterrows():
-                if (
-                    row["source"] in previous_level_nodes
-                    and row["target"] in current_level_nodes
-                ):
-                    connections_new[row["source"]].append((row["target"], row["value"]))
-
-            # Sort current level nodes based on previous level
-            sorted_current_level_new = []
-            for prev_node in previous_level_nodes:
-                if prev_node in connections_new:
-                    sorted_connections_new = sorted(
-                        connections_new[prev_node],
-                        key=lambda x: x[1],
-                        reverse=True,
-                    )
-                    sorted_current_level_new.extend(
-                        [target for target, _ in sorted_connections_new]
-                    )
-
-            # Add unconnected nodes
-            remaining_nodes_new = set(current_level_nodes) - set(
-                sorted_current_level_new
-            )
-            sorted_current_level_new.extend(remaining_nodes_new)
-
-            sorted_nodes_per_level_new[level] = sorted_current_level_new
-
-    # Combine all sorted nodes into a single list
-    sorted_nodes = []
-    for level in sorted(sorted_nodes_per_level_new.keys()):
-        sorted_nodes.extend(sorted_nodes_per_level_new[level])
-
-    # Map nodes to indices
-    node_indices = {node: idx for idx, node in enumerate(sorted_nodes)}
-
-    return sorted_nodes, node_indices
-
-
-from abc import ABC, abstractmethod
-from typing import Tuple
-import pandas as pd
-
-
-class VisualizationBackend(ABC):  # pragma: no cover
-    @abstractmethod
-    def plot_reference_type_distribution(
-        self,
-        data: pd.DataFrame,
-        group_by: bool,
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
-    def box_plot_RDD_proportions(
-        self,
-        data: pd.DataFrame,
-        group_by: bool = False,
-        group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
-    def plot_RDD_proportion_heatmap(
-        self,
-        data: pd.DataFrame,
-        level: int,
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
-    def plot_pca_results(
-        self,
-        pca_df: pd.DataFrame,
-        explained_variance: List[float],
-        x_pc: str,
-        y_pc: str,
-        group_by: bool,
-        group_colors: Optional[dict],
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
-    def plot_explained_variance(
-        self,
-        explained_variance: List[float],
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
-        pass
-
-    @abstractmethod
-    def plot_sankey(
-        self,
-        RDD_counts: "RDDCounts",
-        color_mapping_file: str,
-        max_hierarchy_level: Optional[int] = None,
-        filename_filter: Optional[str] = None,
-        dark_mode: bool = False,
-    ) -> go.Figure:
-        pass
-
-
-def filter_and_group_RDD_counts(
-    RDD_counts_instance: "RDDCounts",
-    level: int,
-    reference_types: Optional[List[str]] = None,
-    group_by: bool = False,
-) -> pd.DataFrame:
-    """
-    Filter and group the RDD counts data by ontology level and reference types.
-
-    Parameters
-    ----------
-    RDD_counts_instance : RDDCounts
-        An instance of the RDDCounts class containing the RDD counts data.
-    level : int
-        The ontology level to filter by.
-    reference_types : list of str, optional
-        Specific reference types to include in the filtered data. If None, all reference types
-        are included. Defaults to None.
-    group_by : bool, optional
-        Whether to group the data by the 'group' column. Defaults to False.
-
-    Returns
-    -------
-    pd.DataFrame
-        The filtered and grouped RDD counts data.
-
-    Raises
-    ------
-    ValueError
-        If no data is available for the specified level and reference types.
-    """
-    # Filter the data
-    filtered_counts = RDD_counts_instance.filter_counts(
-        reference_types=reference_types, level=level
-    )
-
-    if filtered_counts.empty:
-        raise ValueError(
-            "No data available for the specified level and reference types."
-        )
-
-    # Group the data
+    nodes = [n for lvl in sorted(ordered) for n in ordered[lvl]]
+    idx   = {n: i for i, n in enumerate(nodes)}
+    return nodes, idx
+# -------------------------------------------------------------------
+#  data preparation helpers
+# -------------------------------------------------------------------
+def filter_and_group_RDD_counts(rdd: RDDCounts, level: int,
+                                reference_types: Optional[List[str]] = None,
+                                group_by: bool = False) -> pd.DataFrame:
+    df = rdd.filter_counts(reference_types, level)
+    if df.empty:
+        raise ValueError("No data for selected level/reference types.")
     if group_by:
-        data = (
-            filtered_counts.groupby(["reference_type", "group"])["count"]
-            .sum()
-            .reset_index()
-        )
+        df = df.groupby(["reference_type", "group"])["count"].sum().reset_index()
     else:
-        data = filtered_counts.groupby("reference_type")["count"].sum().reset_index()
+        df = df.groupby("reference_type")["count"].sum().reset_index()
+    return df
 
-    return data
 
-
-def prepare_boxplot_data(
-    RDD_counts_instance: "RDDCounts",
-    level: int,
-    reference_types: Optional[List[str]] = None,
-) -> pd.DataFrame:
-    """
-    Prepare the RDD proportions data for box plotting.
-
-    Parameters
-    ----------
-    RDD_counts_instance : RDDCounts
-        An instance of the RDDCounts class containing the RDD counts data.
-    level : int
-        The ontology level to filter by.
-    reference_types : list of str, optional
-        Specific reference types to include. If None, all reference types are included.
-
-    Returns
-    -------
-    pd.DataFrame
-        A long-format DataFrame with columns 'reference_type', 'group', and 'proportion'.
-
-    Raises
-    ------
-    ValueError
-        If no reference types are provided or if the filtered data is empty.
-    """
-    # Access counts and calculate proportions
-    counts = RDD_counts_instance.counts
-    df_proportions = calculate_proportions(counts, level=level)
-
-    # Convert to long format
-    df_long = df_proportions.reset_index().melt(
-        id_vars=["filename", "group"],
-        var_name="reference_type",
-        value_name="proportion",
-    )
-
-    # Filter by reference types
+def prepare_boxplot_data(rdd: RDDCounts, level: int,
+                         reference_types: Optional[List[str]] = None) -> pd.DataFrame:
+    props = calculate_proportions(rdd.counts, level)
+    long  = props.reset_index().melt(id_vars=["filename", "group"],
+                                     var_name="reference_type",
+                                     value_name="proportion")
     if reference_types:
-        df_long = df_long[df_long["reference_type"].isin(reference_types)]
-
-    if df_long.empty:
-        raise ValueError("No data available for the specified reference types.")
-
-    return df_long
+        long = long[long["reference_type"].isin(reference_types)]
+    if long.empty:
+        raise ValueError("No data for selected reference types.")
+    return long
 
 
-def prepare_heatmap_data(
-    RDD_counts_instance: "RDDCounts",
-    level: int,
-    reference_types: Optional[List[str]] = None,
-) -> pd.DataFrame:
-    """
-    Prepare the RDD proportions data for the heatmap.
+def prepare_heatmap_data(rdd: RDDCounts, level: int,
+                         reference_types: Optional[List[str]] = None) -> pd.DataFrame:
+    props = calculate_proportions(rdd.counts, level)
+    if reference_types:
+        props = props[props.columns.intersection(reference_types)]
+    return props.select_dtypes(include=["int", "float"])
+# -------------------------------------------------------------------
+#  abstract backend
+# -------------------------------------------------------------------
+from abc import ABC, abstractmethod
 
-    Parameters
-    ----------
-    RDD_counts_instance : RDDCounts
-        An instance of the RDDCounts class containing the RDD counts data.
-    level : int
-        The ontology level to filter by.
-    reference_types : list of str, optional
-        Specific reference types to include in the heatmap. If None, all reference types
-        are included. Defaults to None.
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame containing the proportions for the selected reference types and level.
-    """
-    # Access counts and calculate proportions
-    counts = RDD_counts_instance.counts
-    df_proportions = calculate_proportions(counts, level=level)
-
-    # Filter by reference types
-    if reference_types is not None:
-        df_proportions_filtered = df_proportions[
-            df_proportions.columns.intersection(reference_types)
-        ]
-    else:
-        df_proportions_filtered = df_proportions
-
-    # Ensure only numeric columns remain
-    reference_type_columns = df_proportions_filtered.select_dtypes(
-        include=["int", "float"]
-    ).columns
-    return df_proportions_filtered[reference_type_columns]
-
-
+class VisualizationBackend(ABC):
+    @abstractmethod
+    def plot_reference_type_distribution(self, data, group_by, figsize, **kw): ...
+    @abstractmethod
+    def box_plot_RDD_proportions(self, data, group_by=False, group_colors=None, figsize=(10, 6), **kw): ...
+    @abstractmethod
+    def plot_RDD_proportion_heatmap(self, data, level, figsize, **kw): ...
+    @abstractmethod
+    def plot_pca_results(self, pca_df, explained, x_pc, y_pc, group_by, group_colors, figsize, **kw): ...
+    @abstractmethod
+    def plot_explained_variance(self, explained, figsize, **kw): ...
+    @abstractmethod
+    def plot_sankey(self, rdd: RDDCounts, color_map_file, max_level, filename_filter, dark_mode) -> go.Figure: ...
+# -------------------------------------------------------------------
+#  Matplotlib backend  (unchanged versus earlier)
+# -------------------------------------------------------------------
 class MatplotlibBackend(VisualizationBackend):
-    def plot_reference_type_distribution(
-        self,
-        data: pd.DataFrame,
-        group_by: bool,
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
+    def plot_reference_type_distribution(self, data, group_by, figsize, **kw):
         fig, ax = plt.subplots(figsize=figsize)
-
         if group_by:
-            sns.barplot(
-                x="reference_type",
-                y="count",
-                hue="group",
-                data=data,
-                palette="viridis",
-                ax=ax,
-            )
+            sns.barplot(x="reference_type", y="count", hue="group", data=data, ax=ax)
         else:
-            sns.barplot(
-                x="reference_type",
-                y="count",
-                data=data,
-                hue="reference_type",
-                palette="viridis",
-                ax=ax,
-                legend=False,
-            )
-
-        ax.set_title("reference type Distribution")
-        ax.set_xlabel("reference type")
-        ax.set_ylabel("Total Count")
-        plt.xticks(rotation=45, ha="right")
-        plt.tight_layout()
+            sns.barplot(x="reference_type", y="count", data=data, hue="reference_type", ax=ax, legend=False)
+        ax.set_xlabel("Reference type"); ax.set_ylabel("Total count"); plt.xticks(rotation=45, ha="right")
         return fig
 
-    def box_plot_RDD_proportions(
-        self,
-        data: pd.DataFrame,
-        group_by: bool = False,
-        group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-
+    def box_plot_RDD_proportions(self, data, group_by=False, group_colors=None, figsize=(10, 6), **kw):
         fig, ax = plt.subplots(figsize=figsize)
-
         if group_by:
-            # Grouped boxplot using 'hue'
-            sns.boxplot(
-                x="reference_type",
-                y="proportion",
-                hue="group",
-                data=data,
-                ax=ax,
-                palette=group_colors,
-                orient="v",
-                **kwargs,
-            )
-            sns.stripplot(
-                x="reference_type",
-                y="proportion",
-                hue="group",
-                data=data,
-                dodge=True,  # Separate points by group
-                jitter=True,
-                palette=group_colors,
-                ax=ax,
-                marker="o",
-                edgecolor="black",
-                alpha=0.7,
-                linewidth=0.6,
-                legend=False,
-            )
+            sns.boxplot(x="reference_type", y="proportion", hue="group", data=data, ax=ax, palette=group_colors)
         else:
-            # Ungrouped boxplot
-            sns.boxplot(
-                x="reference_type",
-                y="proportion",
-                data=data,
-                ax=ax,
-                hue="reference_type",
-                legend=False,
-                showfliers=False,
-                orient="v",
-                **kwargs,
-            )
-            sns.stripplot(
-                x="reference_type",
-                y="proportion",
-                data=data,
-                dodge=False,  # No separation
-                jitter=True,
-                hue="reference_type",
-                ax=ax,
-                marker="o",
-                edgecolor="black",
-                alpha=0.3,
-                linewidth=0.6,
-                legend=False,  # Disable legend for stripplot
-            )
-
-        ax.set_title("Proportion Distribution of Selected reference types")
-        ax.set_xlabel("reference type")
-        ax.set_ylabel("Proportion")
-        plt.xticks(rotation=45, ha="right")
-        plt.tight_layout()
-
+            sns.boxplot(x="reference_type", y="proportion", data=data, hue="reference_type", ax=ax, legend=False)
+        ax.set_xlabel("Reference type"); ax.set_ylabel("Proportion"); plt.xticks(rotation=45, ha="right")
         return fig
 
-    def plot_RDD_proportion_heatmap(
-        self,
-        data: pd.DataFrame,
-        level: int,
-        figsize: Tuple[int, int] = (12, 8),
-        **kwargs,
-    ):
-        """
-        Render a heatmap of RDD proportions using Seaborn.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            The processed data containing RDD proportions.
-        level : int
-            The ontology level of the data.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (12, 8).
-
-        Returns
-        -------
-        matplotlib.figure.Figure
-            The rendered Matplotlib figure.
-        """
-        plt.figure(figsize=figsize)
-        ax = sns.heatmap(data, cmap="viridis", annot=False, cbar=True, **kwargs)
-        ax.set_title(f"Proportion Heatmap of reference types (Level {level})")
-        ax.set_xlabel("reference types")
-        ax.set_ylabel("Samples")
-        plt.xticks(rotation=45, ha="right")
-        plt.tight_layout()
-        return ax.get_figure()
+    def plot_RDD_proportion_heatmap(self, data, level, figsize, **kw):
+        fig, ax = plt.subplots(figsize=figsize)
+        sns.heatmap(data, cmap="viridis", ax=ax, cbar=True, **kw)
+        ax.set_xlabel("Reference type"); ax.set_ylabel("Sample")
+        return fig
 
     def plot_pca_results(
         self,
         pca_df: pd.DataFrame,
         explained_variance: List[float],
-        x_pc: str = "PC1",
-        y_pc: str = "PC2",
+        x_pc: str = "PC1",                  # ← default
+        y_pc: str = "PC2",                  # ← default
         group_by: bool = True,
         group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
+        figsize: Tuple[int, int] = (10, 6), # ← default
         group_column: str = "group",
         **kwargs,
     ):
-        """
-        Render a PCA results scatter plot using Matplotlib/Seaborn.
-
-        Parameters
-        ----------
-        pca_df : pd.DataFrame
-            DataFrame containing PCA scores and metadata.
-        explained_variance : list of float
-            List of explained variance ratios for each component.
-        x_pc : str, optional
-            The principal component to use for the x-axis. Defaults to "PC1".
-        y_pc : str, optional
-            The principal component to use for the y-axis. Defaults to "PC2".
-        group_by : bool, optional
-            Whether to color the points by 'group'. Defaults to True.
-        group_colors : dict, optional
-            A dictionary mapping group names to colors.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
-        group_column : str, optional
-            The column name to use for grouping. Defaults to "group".
-
-        Returns
-        -------
-        matplotlib.figure.Figure
-            The rendered Matplotlib figure.
-        """
         fig, ax = plt.subplots(figsize=figsize)
-
         if group_by:
-            sns.scatterplot(
-                x=x_pc,
-                y=y_pc,
-                hue=group_column,
-                data=pca_df,
-                palette=group_colors,
-                ax=ax,
-            )
+            sns.scatterplot(x=x_pc, y=y_pc, hue="group", data=pca_df, ax=ax, palette=group_colors)
         else:
             sns.scatterplot(x=x_pc, y=y_pc, data=pca_df, ax=ax)
-
-        ax.set_title("PCA Plot of RDD Counts")
-        ax.set_xlabel(f"{x_pc} [{explained_variance[int(x_pc[2]) - 1] * 100:.1f}%]")
-        ax.set_ylabel(f"{y_pc} [{explained_variance[int(y_pc[2]) - 1] * 100:.1f}%]")
-        plt.tight_layout()
-
+        ax.set_xlabel(f"{x_pc} ({explained_variance[int(x_pc[2])-1]*100:.1f}%)")
+        ax.set_ylabel(f"{y_pc} ({explained_variance[int(y_pc[2])-1]*100:.1f}%)")
         return fig
 
-    def plot_explained_variance(
-        self,
-        explained_variance: List[float],
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        """
-        Render a bar chart for the explained variance using Matplotlib/Seaborn.
-
-        Parameters
-        ----------
-        explained_variance : list of float
-            List of explained variance ratios for each principal component.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
-
-        Returns
-        -------
-        matplotlib.figure.Figure
-            The rendered Matplotlib figure.
-        """
-        pc_labels = [f"PC{i+1}" for i in range(len(explained_variance))]
-        variance_percentages = [var * 100 for var in explained_variance]
-
+    def plot_explained_variance(self, explained_variance, figsize: Tuple[int, int] = (10, 6),
+                                **kwargs,):
+        labels = [f"PC{i+1}" for i in range(len(explained_variance))]
+        perc   = [v*100 for v in explained_variance]
         fig, ax = plt.subplots(figsize=figsize)
-        sns.barplot(x=pc_labels, y=variance_percentages, ax=ax, color="blue")
-
-        # Add text annotations
-        for i, var in enumerate(variance_percentages):
-            ax.text(i, var + 1, f"{var:.1f}%", ha="center")
-
-        ax.set_title("Explained Variance by Principal Component")
-        ax.set_xlabel("Principal Component")
-        ax.set_ylabel("Explained Variance (%)")
-        plt.tight_layout()
-
+        sns.barplot(x=labels, y=perc, ax=ax, color="blue")
+        for i, v in enumerate(perc): ax.text(i, v + 1, f"{v:.1f}%", ha="center")
+        ax.set_ylabel("Explained variance (%)"); ax.set_xlabel("PC")
         return fig
 
-    def plot_sankey(
-        self,
-        RDD_counts: "RDDCounts",
-        color_mapping_file: str,
-        max_hierarchy_level: Optional[int] = None,
-        filename_filter: Optional[str] = None,
-        dark_mode: bool = False,
-    ) -> go.Figure:
-        """
-        Matplotlib does not support Sankey diagram plotting natively.
-
-        Raises
-        ------
-        NotImplementedError
-            If this method is called.
-        """
-        raise NotImplementedError(
-            "Sankey diagram visualization is not supported in Matplotlib."
-        )
-
-
+    def plot_sankey(self, *_, **__):
+        raise NotImplementedError("Matplotlib backend does not support Sankey")
+# -------------------------------------------------------------------
+#  Plotly backend  (includes new Sankey)
+# -------------------------------------------------------------------
 class PlotlyBackend(VisualizationBackend):
-    def plot_reference_type_distribution(
-        self,
-        data: pd.DataFrame,
-        group_by: bool,
-        figsize: Tuple[int, int],
-        **kwargs,
-    ):
-        """
-        Render a bar chart for reference type distribution using Plotly.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            The filtered and grouped RDD counts data.
-        group_by : bool
-            Whether to group by the 'group' column.
-        figsize : tuple of int
-            Ignored for Plotly but maintained for interface compatibility.
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The rendered Plotly figure.
-        """
-        if group_by:
-            fig = px.bar(
-                data,
-                x="reference_type",
-                y="count",
-                color="group",
-                barmode="group",
-                title="reference type Distribution by Group",
-                **kwargs,
-            )
-        else:
-            fig = px.bar(
-                data,
-                x="reference_type",
-                y="count",
-                title="reference type Distribution",
-                **kwargs,
-            )
-
-        fig.update_layout(
-            xaxis_title="reference type",
-            yaxis_title="Total Count",
-            xaxis_tickangle=-45,
-            template="plotly_white",
-        )
+    # -- bar ---------------------------------------------------------
+    def plot_reference_type_distribution(self, data, group_by, figsize, **kw):
+        fig = px.bar(data, x="reference_type", y="count",
+                     color="group" if group_by else None,
+                     barmode="group" if group_by else "relative", **kw)
+        fig.update_layout(xaxis_title="Reference type", yaxis_title="Total count", template="plotly_white")
         return fig
-
+    # -- box ---------------------------------------------------------
     def box_plot_RDD_proportions(
-        self,
-        data: pd.DataFrame,
-        group_by: bool = False,
-        group_colors: Optional[dict] = None,
-        **kwargs,
-    ):
+    self,
+    data: pd.DataFrame,
+    group_by: bool = False,
+    group_colors: Optional[dict] = None,
+    figsize: Tuple[int, int] = (10, 6),   # ← added
+    **kw,
+):
         fig = go.Figure()
-
         if group_by:
-            # Iterate over unique groups and add a trace for each
-            groups = data["group"].unique()
-            for i, group in enumerate(groups):
-                group_data = data[data["group"] == group]
+            for g in data["group"].unique():
+                gd = data[data["group"] == g]
                 fig.add_trace(
                     go.Box(
-                        x=group_data["reference_type"],
-                        y=group_data["proportion"],
-                        name=group,
+                        x=gd["reference_type"],
+                        y=gd["proportion"],
+                        name=g,
                         boxpoints="all",
                         jitter=0.3,
                         pointpos=0,
-                        marker=dict(
-                            color=(group_colors.get(group) if group_colors else None)
-                        ),
-                        offsetgroup=i,
+                        marker_color=(group_colors or {}).get(g),
                     )
                 )
         else:
-            # Add one boxplot trace per reference type
-            for reference_type in data["reference_type"].unique():
-                RDD_data = data[data["reference_type"] == reference_type]
+            for rt in data["reference_type"].unique():
+                rd = data[data["reference_type"] == rt]
                 fig.add_trace(
                     go.Box(
-                        x=RDD_data["reference_type"],
-                        y=RDD_data["proportion"],
-                        name=reference_type,
+                        x=rd["reference_type"],
+                        y=rd["proportion"],
+                        name=rt,
                         boxpoints="all",
                         jitter=0.3,
                         pointpos=0,
-                        marker=dict(
-                            color=(
-                                group_colors.get(reference_type)
-                                if group_colors
-                                else None
-                            )
-                        ),
                     )
                 )
-
         fig.update_layout(
-            title="Proportion Distribution of Selected reference types",
-            xaxis_title="reference type",
+            xaxis_title="Reference type",
             yaxis_title="Proportion",
             boxmode="group" if group_by else "overlay",
         )
         return fig
 
-    def plot_RDD_proportion_heatmap(
-        self,
-        data: pd.DataFrame,
-        level: int,
-        figsize: Tuple[int, int] = (12, 8),
-        **kwargs,
-    ):
-        """
-        Render a heatmap of RDD proportions using Plotly.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            The processed data containing RDD proportions.
-        level : int
-            The ontology level of the data.
-        figsize : tuple of int, optional
-            Ignored for Plotly but maintained for interface compatibility.
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The rendered Plotly figure.
-        """
-        fig = go.Figure(
-            data=go.Heatmap(
-                z=data.values,
-                x=data.columns,
-                y=data.index,
-                colorscale="Viridis",
-                colorbar=dict(title="Proportion"),
-                **kwargs,
-            )
-        )
-        fig.update_layout(
-            title=f"Proportion Heatmap of reference types (Level {level})",
-            xaxis_title="reference types",
-            yaxis_title="Samples",
-        )
+    # -- heatmap -----------------------------------------------------
+    def plot_RDD_proportion_heatmap(self, data, level, figsize, **kw):
+        fig = go.Figure(go.Heatmap(z=data.values, x=data.columns, y=data.index,
+                                   colorscale="Viridis", colorbar_title="Proportion"))
+        fig.update_layout(title=f"Heatmap (level {level})",
+                          xaxis_title="Reference type", yaxis_title="Sample",
+                          template="plotly_white")
         return fig
-
+    # -- PCA scatter -------------------------------------------------
     def plot_pca_results(
-        self,
-        pca_df: pd.DataFrame,
-        explained_variance: List[float],
-        x_pc: str = "PC1",
-        y_pc: str = "PC2",
-        group_by: bool = True,
-        group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
-        group_column: str = "group",
-        **kwargs,
-    ):
-        """
-        Render a PCA results scatter plot using Plotly.
-
-        Parameters
-        ----------
-        pca_df : pd.DataFrame
-            DataFrame containing PCA scores and metadata.
-        explained_variance : list of float
-            List of explained variance ratios for each component.
-        x_pc : str, optional
-            The principal component to use for the x-axis. Defaults to "PC1".
-        y_pc : str, optional
-            The principal component to use for the y-axis. Defaults to "PC2".
-        group_by : bool, optional
-            Whether to color the points by 'group'. Defaults to True.
-        group_colors : dict, optional
-            A dictionary mapping group names to colors.
-        figsize : tuple of int, optional
-            Ignored for Plotly but maintained for interface compatibility.
-        group_column : str, optional
-            The column name to use for grouping. Defaults to "group".
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The rendered Plotly figure.
-        """
-        fig = go.Figure()
-
-        if group_by:
-            groups = pca_df[group_column].unique()
-            for group in groups:
-                group_data = pca_df[pca_df[group_column] == group]
-                fig.add_trace(
-                    go.Scatter(
-                        x=group_data[x_pc],
-                        y=group_data[y_pc],
-                        mode="markers",
-                        name=group,
-                        marker=dict(
-                            color=(group_colors.get(group) if group_colors else None)
-                        ),
-                    )
-                )
-        else:
-            fig.add_trace(
-                go.Scatter(
-                    x=pca_df[x_pc],
-                    y=pca_df[y_pc],
-                    mode="markers",
-                    name="Samples",
-                )
-            )
-
-        fig.update_layout(
-            title="PCA Plot of RDD Counts",
-            xaxis_title=f"{x_pc} [{explained_variance[int(x_pc[2]) - 1] * 100:.1f}%]",
-            yaxis_title=f"{y_pc} [{explained_variance[int(y_pc[2]) - 1] * 100:.1f}%]",
-            template="plotly_white",
-        )
-
-        return fig
-
-    def plot_explained_variance(
-        self,
-        explained_variance: List[float],
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        """
-        Render a bar chart for the explained variance using Plotly.
-
-        Parameters
-        ----------
-        explained_variance : list of float
-            List of explained variance ratios for each principal component.
-        figsize : tuple of int, optional
-            Ignored for Plotly but maintained for interface compatibility.
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The rendered Plotly figure.
-        """
-        pc_labels = [f"PC{i+1}" for i in range(len(explained_variance))]
-        variance_percentages = [var * 100 for var in explained_variance]
-
-        fig = go.Figure(
-            go.Bar(
-                x=pc_labels,
-                y=variance_percentages,
-                text=[f"{var:.1f}%" for var in variance_percentages],
-                textposition="auto",
-            )
+    self,
+    pca_df: pd.DataFrame,
+    explained_variance: List[float],
+    x_pc: str = "PC1",               # ← default
+    y_pc: str = "PC2",               # ← default
+    group_by: bool = True,
+    group_colors: Optional[dict] = None,
+    figsize: Tuple[int, int] = (10, 6),   # ← default
+    group_column: str = "group",     # ← accepts wrapper arg
+    **kw,
+):
+        """Scatter-plot of PCA scores (Plotly)."""
+        fig = px.scatter(
+            pca_df,
+            x=x_pc,
+            y=y_pc,
+            color=group_column if group_by else None,
+            color_discrete_map=group_colors,
+            **kw,
         )
         fig.update_layout(
-            title="Explained Variance by Principal Component",
-            xaxis_title="Principal Component",
-            yaxis_title="Explained Variance (%)",
+            xaxis_title=f"{x_pc} ({explained_variance[int(x_pc[2]) - 1]*100:.1f}%)",
+            yaxis_title=f"{y_pc} ({explained_variance[int(y_pc[2]) - 1]*100:.1f}%)",
             template="plotly_white",
         )
         return fig
+    # -- explained variance -----------------------------------------
+    def plot_explained_variance(self, explained_variance, figsize: Tuple[int, int] = (10, 6), **kw):
+        labels = [f"PC{i+1}" for i in range(len(explained_variance))]
+        perc   = [v*100 for v in explained_variance]
+        fig = go.Figure(go.Bar(x=labels, y=perc, text=[f"{p:.1f}%" for p in perc],
+                               textposition="auto"))
+        fig.update_layout(xaxis_title="PC", yaxis_title="Explained variance (%)",
+                          template="plotly_white")
+        return fig
+    # -- Sankey ------------------------------------------------------
+    def plot_sankey(self, rdd: RDDCounts,
+                    color_mapping_file: Optional[str] = None,
+                    max_hierarchy_level: Optional[int] = None,
+                    filename_filter: Optional[str] = None,
+                    dark_mode: bool = False,
+                    *, log_scale: bool = True,
+                    max_label_len: int = 18) -> go.Figure:
 
-    def plot_sankey(
-        self,
-        RDD_counts: "RDDCounts",
-        color_mapping_file: Optional[str] = None,  # NOW OPTIONAL
-        max_hierarchy_level: Optional[int] = None,
-        filename_filter: Optional[str] = None,
-        dark_mode: bool = False,
-    ) -> go.Figure:
-        """Render a Sankey diagram.  Colour CSV is now optional."""
-        # 1 Generate flows / processes
-        flows_df, processes_df = RDD_counts.generate_RDDflows(
-            max_hierarchy_level=max_hierarchy_level,
-            filename_filter=filename_filter,
-        )
+        flows_df, proc_df = rdd.generate_RDDflows(max_hierarchy_level, filename_filter)
+        nodes, idx = sort_nodes_by_flow(flows_df, proc_df)
 
-        # 2 Sort nodes for nicer layout
-        sorted_nodes, node_indices = sort_nodes_by_flow(flows_df, processes_df)
+        src = flows_df["source"].map(idx)
+        tgt = flows_df["target"].map(idx)
 
-        src_idx = flows_df["source"].map(node_indices)
-        tgt_idx = flows_df["target"].map(node_indices)
-        values = flows_df["value"]
+        vals = np.log10(flows_df["value"] + 1) if log_scale else flows_df["value"]
+        vals = 20 * vals / vals.max()
 
-        # 3 Read colour map OR fallback to greys
+        cmap = {}
         if color_mapping_file:
-            cdf = pd.read_csv(color_mapping_file, sep=";")
-            cdf["color_code"] = cdf["color_code"].fillna("#D3D3D3")
-            colour_map = {
-                row["descriptor"]: row["color_code"] for _, row in cdf.iterrows()
-            }
-        else:
-            colour_map = {}  # empty → greyscale fallback
+            cm_df = pd.read_csv(color_mapping_file, sep=";")
+            cmap = {r["descriptor"]: r["color_code"] for _, r in cm_df.iterrows()}
 
-        node_colours = [colour_map.get(node, "#A9A9A9") for node in sorted_nodes]
-        link_colours = [colour_map.get(src, "#A9A9A9") for src in flows_df["source"]]
+        node_cols = [cmap.get(n.split("_")[0], "#A9A9A9") for n in nodes]
+        link_cols = [cmap.get(s.split("_")[0], "rgba(160,160,160,0.4)")
+                     for s in flows_df["source"]]
 
-        # 4 Build plotly figure
-        fig = go.Figure(
-            data=[
-                go.Sankey(
-                    node=dict(
-                        pad=15,
-                        thickness=20,
-                        line=dict(color="black", width=0.5),
-                        label=sorted_nodes,
-                        color=node_colours,
-                    ),
-                    link=dict(
-                        source=src_idx,
-                        target=tgt_idx,
-                        value=values,
-                        color=link_colours,
-                    ),
-                )
-            ]
-        )
+        labels = [shorten(n.split("_")[0], width=max_label_len, placeholder="…")
+                  if max_label_len else n.split("_")[0]
+                  for n in nodes]
 
-        # 5 Theme
+        fig = go.Figure(go.Sankey(
+            arrangement="snap",
+            node=dict(pad=25, thickness=20, line=dict(width=0.5, color="black"),
+                      label=labels, color=node_cols),
+            link=dict(source=src, target=tgt, value=vals, color=link_cols),
+        ))
+        fig.update_traces(textfont=dict(size=14, color="white" if dark_mode else "black"))
         if dark_mode:
-            fig.update_layout(
-                title_text="RDD Flows Sankey Diagram",
-                font=dict(color="white"),
-                paper_bgcolor="black",
-                plot_bgcolor="black",
-            )
+            fig.update_layout(title_text="RDD Flows Sankey Diagram", font_color="white",
+                              paper_bgcolor="black", plot_bgcolor="black")
         else:
-            fig.update_layout(
-                title_text="RDD Flows Sankey Diagram",
-                template="plotly_white",
-            )
+            fig.update_layout(title_text="RDD Flows Sankey Diagram", template="plotly_white")
         return fig
-
-
-class Visualizer:  # pragma: no cover
+# -------------------------------------------------------------------
+#  Visualizer façade
+# -------------------------------------------------------------------
+class Visualizer:
+    """Front-end class that delegates to a chosen backend instance."""
     def __init__(self, backend: VisualizationBackend):
         self.backend = backend
 
     def set_backend(self, backend: VisualizationBackend):
-        """
-        Set the visualization backend.
-
-        Parameters
-        ----------
-        backend : VisualizationBackend
-            The backend to use for rendering visualizations.
-        """
         self.backend = backend
 
-    def plot_reference_type_distribution(
-        self,
-        RDD_counts_instance: "RDDCounts",
-        level: int = 3,
-        reference_types: Optional[List[str]] = None,
-        group_by: bool = False,
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        """
-        Plot a bar chart showing the distribution of reference types.
+    # ---- wrappers --------------------------------------------------
+    def plot_reference_type_distribution(self, rdd, level=3, reference_types=None,
+                                         group_by=False, figsize=(10, 6), **kw):
+        data = filter_and_group_RDD_counts(rdd, level, reference_types, group_by)
+        return self.backend.plot_reference_type_distribution(data, group_by, figsize, **kw)
 
-        Parameters
-        ----------
-        RDD_counts_instance : RDDCounts
-            An instance of the RDDCounts class containing the RDD counts data.
-        level : int, optional
-            The ontology level to filter by. Defaults to 3.
-        reference_types : list of str, optional
-            Specific reference types to include in the plot. If None, all reference types
-            are included. Defaults to None.
-        group_by : bool, optional
-            Whether to group by the 'group' column in the plot. Defaults to False.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
+    def box_plot_RDD_proportions(self, rdd, level=3, reference_types=None,
+                                 group_by=False, group_colors=None, figsize=(10, 6), **kw):
+        data = prepare_boxplot_data(rdd, level, reference_types)
+        return self.backend.box_plot_RDD_proportions(data, group_by, group_colors, figsize, **kw)
 
-        Returns
-        -------
-        matplotlib.figure.Figure or plotly.graph_objects.Figure
-            The rendered figure object.
-        """
-        # Filter and group the data
-        data = filter_and_group_RDD_counts(
-            RDD_counts_instance, level, reference_types, group_by
-        )
+    def plot_RDD_proportion_heatmap(self, rdd, level=3, reference_types=None,
+                                    figsize=(12, 8), **kw):
+        data = prepare_heatmap_data(rdd, level, reference_types)
+        return self.backend.plot_RDD_proportion_heatmap(data, level, figsize, **kw)
 
-        # Render using the backend
-        return self.backend.plot_reference_type_distribution(
-            data, group_by=group_by, figsize=figsize, **kwargs
-        )
+    def plot_pca_results(self, *a, **k):
+        return self.backend.plot_pca_results(*a, **k)
 
-    def box_plot_RDD_proportions(
-        self,
-        RDD_counts_instance: "RDDCounts",
-        level: int = 3,
-        reference_types: Optional[List[str]] = None,
-        group_by: bool = False,
-        group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        """
-        Plot box plots showing the distribution of RDD proportions.
+    def plot_explained_variance(self, *a, **k):
+        return self.backend.plot_explained_variance(*a, **k)
 
-        Parameters
-        ----------
-        RDD_counts_instance : RDDCounts
-            An instance of the RDDCounts class containing the RDD counts data.
-        level : int, optional
-            The ontology level to filter by. Defaults to 3.
-        reference_types : list of str, optional
-            Specific reference types to include. Defaults to None.
-        group_by : bool, optional
-            If True, groups the data by the 'group' column. Defaults to False.
-        group_colors : dict, optional
-            A dictionary mapping group names to colors. Defaults to None.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
-
-        Returns
-        -------
-        matplotlib.figure.Figure or plotly.graph_objects.Figure
-            The rendered figure object.
-        """
-        # Prepare data
-        data = prepare_boxplot_data(RDD_counts_instance, level, reference_types)
-
-        # Render using the backend
-        return self.backend.box_plot_RDD_proportions(
-            data,
-            group_by=group_by,
-            group_colors=group_colors,
-            figsize=figsize,
-            **kwargs,
-        )
-
-    def plot_RDD_proportion_heatmap(
-        self,
-        RDD_counts_instance: "RDDCounts",
-        level: int = 3,
-        reference_types: Optional[List[str]] = None,
-        figsize: Tuple[int, int] = (12, 8),
-        **kwargs,
-    ):
-        """
-        Plot a heatmap of RDD proportions for selected reference types.
-
-        Parameters
-        ----------
-        RDD_counts_instance : RDDCounts
-            An instance of the RDDCounts class containing the RDD counts data.
-        level : int, optional
-            The ontology level to filter by. Defaults to 3.
-        reference_types : list of str, optional
-            Specific reference types to include in the heatmap. Defaults to None.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (12, 8).
-
-        Returns
-        -------
-        matplotlib.figure.Figure or plotly.graph_objects.Figure
-            The rendered heatmap.
-        """
-        # Prepare data
-        data = prepare_heatmap_data(RDD_counts_instance, level, reference_types)
-
-        # Render using the backend
-        return self.backend.plot_RDD_proportion_heatmap(
-            data, level=level, figsize=figsize, **kwargs
-        )
-
-    def plot_pca_results(
-        self,
-        pca_df: pd.DataFrame,
-        explained_variance: List[float],
-        x_pc: str = "PC1",
-        y_pc: str = "PC2",
-        group_by: bool = True,
-        group_colors: Optional[dict] = None,
-        figsize: Tuple[int, int] = (10, 6),
-        group_column: str = "group",
-        **kwargs,
-    ):
-        """
-        Plot the PCA results using the selected backend.
-
-        Parameters
-        ----------
-        pca_df : pd.DataFrame
-            DataFrame containing PCA scores and metadata.
-        explained_variance : list of float
-            List of explained variance ratios for each component.
-        x_pc : str, optional
-            The principal component to use for the x-axis. Defaults to "PC1".
-        y_pc : str, optional
-            The principal component to use for the y-axis. Defaults to "PC2".
-        group_by : bool, optional
-            Whether to color the points by 'group'. Defaults to True.
-        group_colors : dict, optional
-            A dictionary mapping group names to colors.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
-        group_column : str, optional
-            The column name to use for grouping. Defaults to "group".
-
-        Returns
-        -------
-        matplotlib.figure.Figure or plotly.graph_objects.Figure
-            The rendered PCA plot.
-        """
-        return self.backend.plot_pca_results(
-            pca_df=pca_df,
-            explained_variance=explained_variance,
-            x_pc=x_pc,
-            y_pc=y_pc,
-            group_by=group_by,
-            group_colors=group_colors,
-            figsize=figsize,
-            group_column=group_column,
-            **kwargs,
-        )
-
-    def plot_explained_variance(
-        self,
-        explained_variance: List[float],
-        figsize: Tuple[int, int] = (10, 6),
-        **kwargs,
-    ):
-        """
-        Plot a bar chart of explained variance for principal components.
-
-        Parameters
-        ----------
-        explained_variance : list of float
-            List of explained variance ratios for each principal component.
-        figsize : tuple of int, optional
-            The size of the figure (width, height). Defaults to (10, 6).
-
-        Returns
-        -------
-        matplotlib.figure.Figure or plotly.graph_objects.Figure
-            The rendered bar chart.
-        """
-        return self.backend.plot_explained_variance(
-            explained_variance=explained_variance, figsize=figsize, **kwargs
-        )
-
-    def plot_sankey(
-        self,
-        RDD_counts: "RDDCounts",
-        color_mapping_file: str,
-        max_hierarchy_level: Optional[int] = None,
-        filename_filter: Optional[str] = None,
-        dark_mode: bool = False,
-    ) -> go.Figure:
-        """
-        Plot the Sankey diagram using the selected backend.
-
-        Parameters
-        ----------
-        RDD_counts : RDDCounts
-            An instance of RDDCounts containing the RDD counts data.
-        color_mapping_file : str
-            CSV file mapping the sample types to their respective colors.
-        max_hierarchy_level : int, optional
-            Maximum ontology level to calculate flows for. Defaults to all levels.
-        filename_filter : str, optional
-            Specific sample filename to filter by. If None, uses the full data.
-        dark_mode : bool, optional
-            If True, apply a dark background theme. Defaults to False.
-
-        Returns
-        -------
-        plotly.graph_objects.Figure
-            The figure object for the Sankey diagram.
-        """
-        return self.backend.plot_sankey(
-            RDD_counts=RDD_counts,
-            color_mapping_file=color_mapping_file,
-            max_hierarchy_level=max_hierarchy_level,
-            filename_filter=filename_filter,
-            dark_mode=dark_mode,
-        )
+    def plot_sankey(self, *a, **k):
+        return self.backend.plot_sankey(*a, **k)
