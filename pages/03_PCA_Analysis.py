@@ -25,7 +25,7 @@ chosen_gc = st.selectbox("Grouping column", groupable,
 
 if chosen_gc != curr_gc:
     set_group(rdd, chosen_gc)
-    st.experimental_rerun()
+    st.rerun()
 # -------------------------------------
 
 level      = st.slider("Ontology level", 0, rdd.levels, 3)

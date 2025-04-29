@@ -19,11 +19,5 @@ st.markdown(
 
 4. **Sankey Diagram**  
    Provide a colour map (`descriptor;color_code`) and explore hierarchical flows.
-
-**Session reset**  
-When you refresh the browser tab the session clears. Use *Download / Upload* (not yet implemented) or re-run the “Create” step.
-
-**Source code**  
-All visual logic resides in your existing `src.visualization` module; the Streamlit pages merely call those helpers.
 """
 )
