@@ -64,6 +64,11 @@ elif gnps_file:
             sorted(gnps_df["DefaultGroups"].dropna().unique()),
             default=None,
         )
+        reference_groups_sel = st.multiselect(
+            "Reference groups to include",
+            sorted(gnps_df["DefaultGroups"].dropna().unique()),
+            default=None,
+        )
 
 # -------- other parameters --------
 sample_type = st.selectbox("Reference sample type", ("all", "simple", "complex"))
@@ -97,7 +102,7 @@ if st.button("Generate RDD Counts"):
             external_reference_metadata=ref_meta_p,
             external_sample_metadata=sample_meta_p,
             ontology_columns=ontology_list or None,
-            reference_groups=None,  # not used
+            reference_groups=reference_groups_sel or None,  # not used
         )
 
         # make chosen column the live group

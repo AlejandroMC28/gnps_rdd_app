@@ -282,49 +282,96 @@ class PlotlyBackend(VisualizationBackend):
                           template="plotly_white")
         return fig
     # -- Sankey ------------------------------------------------------
-    def plot_sankey(self, rdd: RDDCounts,
-                    color_mapping_file: Optional[str] = None,
-                    max_hierarchy_level: Optional[int] = None,
-                    filename_filter: Optional[str] = None,
-                    dark_mode: bool = False,
-                    *, log_scale: bool = True,
-                    max_label_len: int = 18) -> go.Figure:
 
-        flows_df, proc_df = rdd.generate_RDDflows(max_hierarchy_level, filename_filter)
-        nodes, idx = sort_nodes_by_flow(flows_df, proc_df)
+    # ────────────────────────────────────────────────────────────────
+    #  Sankey
+    # ────────────────────────────────────────────────────────────────
+    def plot_sankey(
+        self,
+        RDD_counts: "RDDCounts",
+        color_mapping_file: Optional[str] = None,      # optional palette
+        max_hierarchy_level: Optional[int] = None,
+        filename_filter: Optional[str] = None,
+        dark_mode: bool = False,
+        *,
+        per_level_scale: bool = True,                  # NEW: scale each level
+        log_scale: bool = False,                       # keep old option
+        max_px: int = 20,                              # max link thickness
+        max_label_len: int = 18,
+    ) -> go.Figure:
+        """
+        Draw an RDD Sankey diagram.
 
-        src = flows_df["source"].map(idx)
-        tgt = flows_df["target"].map(idx)
+        - If *color_mapping_file* is **None** the diagram falls back to a
+          greyscale palette that works in both light and dark themes.
+        - If *per_level_scale* is **True** every source-level is scaled
+          independently so top-level flows are always thicker than deeper ones.
+        """
 
-        vals = np.log10(flows_df["value"] + 1) if log_scale else flows_df["value"]
-        vals = 20 * vals / vals.max()
+        # ---- 1.  build flow table ---------------------------------
+        flows_df, processes_df = RDD_counts.generate_RDDflows(
+            max_hierarchy_level=max_hierarchy_level,
+            filename_filter=filename_filter,
+        )
+        sorted_nodes, node_idx = sort_nodes_by_flow(flows_df, processes_df)
 
-        cmap = {}
+        # map to integer indices expected by Plotly
+        src = flows_df["source"].map(node_idx)
+        tgt = flows_df["target"].map(node_idx)
+
+        # ---- 2.  link thickness -----------------------------------
+        if per_level_scale:
+            # split “plant_1”, “fruit_2”, … into (name, level)
+            flows_df["src_lvl"] = flows_df["source"].str.rsplit("_", n=1).str[-1].astype(int)
+            lvl_max = flows_df.groupby("src_lvl")["value"].transform("max")
+            link_val = max_px * flows_df["value"] / lvl_max
+        elif log_scale:
+            link_val = max_px * np.log10(flows_df["value"] + 1) / np.log10(flows_df["value"].max() + 1)
+        else:
+            link_val = max_px * flows_df["value"] / flows_df["value"].max()
+
+        # ---- 3.  colour mapping -----------------------------------
+        NODE_GREY = "#D3D3D3"
+        LINK_GREY = "rgba(211,211,211,0.4)"
+        colour_map: dict[str, str] = {}
+
         if color_mapping_file:
             cm_df = pd.read_csv(color_mapping_file, sep=";")
-            cmap = {r["descriptor"]: r["color_code"] for _, r in cm_df.iterrows()}
+            cm_df["color_code"] = cm_df["color_code"].fillna(NODE_GREY)
+            colour_map = dict(zip(cm_df["descriptor"], cm_df["color_code"]))
 
-        node_cols = [cmap.get(n.split("_")[0], "#A9A9A9") for n in nodes]
-        link_cols = [cmap.get(s.split("_")[0], "rgba(160,160,160,0.4)")
-                     for s in flows_df["source"]]
+        node_colors = [colour_map.get(n.split("_")[0], NODE_GREY) for n in sorted_nodes]
+        link_colors = [colour_map.get(s.split("_")[0], LINK_GREY) for s in flows_df["source"]]
 
+        # ---- 4.  figure -------------------------------------------
         labels = [shorten(n.split("_")[0], width=max_label_len, placeholder="…")
-                  if max_label_len else n.split("_")[0]
-                  for n in nodes]
+                  if max_label_len else n.split("_")[0] for n in sorted_nodes]
 
-        fig = go.Figure(go.Sankey(
-            arrangement="snap",
-            node=dict(pad=25, thickness=20, line=dict(width=0.5, color="black"),
-                      label=labels, color=node_cols),
-            link=dict(source=src, target=tgt, value=vals, color=link_cols),
-        ))
+        fig = go.Figure(
+            go.Sankey(
+                arrangement="snap",
+                node=dict(pad=15, thickness=20, line=dict(width=0.5, color="black"),
+                          label=labels, color=node_colors),
+                link=dict(source=src, target=tgt, value=link_val, color=link_colors),
+            )
+        )
+
+        # ---- 5.  styling ------------------------------------------
         fig.update_traces(textfont=dict(size=14, color="white" if dark_mode else "black"))
+
         if dark_mode:
-            fig.update_layout(title_text="RDD Flows Sankey Diagram", font_color="white",
-                              paper_bgcolor="black", plot_bgcolor="black")
+            fig.update_layout(title_text="RDD Flows Sankey Diagram",
+                              font_color="white",
+                              paper_bgcolor="black",
+                              plot_bgcolor="black")
         else:
-            fig.update_layout(title_text="RDD Flows Sankey Diagram", template="plotly_white")
+            fig.update_layout(title_text="RDD Flows Sankey Diagram",
+                              template="plotly_white")
+
         return fig
+
+    
+
 # -------------------------------------------------------------------
 #  Visualizer façade
 # -------------------------------------------------------------------
