@@ -340,13 +340,20 @@ class PlotlyBackend(VisualizationBackend):
             cm_df["color_code"] = cm_df["color_code"].fillna(NODE_GREY)
             colour_map = dict(zip(cm_df["descriptor"], cm_df["color_code"]))
 
-        node_colors = [colour_map.get(n.split("_")[0], NODE_GREY) for n in sorted_nodes]
-        link_colors = [colour_map.get(s.split("_")[0], LINK_GREY) for s in flows_df["source"]]
+        node_colors = [
+            colour_map.get(n, colour_map.get(n.split("_")[0], NODE_GREY))
+            for n in sorted_nodes
+        ]
+
+        link_colors = [
+            colour_map.get(s, colour_map.get(s.split("_")[0], LINK_GREY))
+            for s in flows_df["source"]
+]
 
         # ---- 4.  figure -------------------------------------------
         labels = [shorten(n.split("_")[0], width=max_label_len, placeholder="…")
                   if max_label_len else n.split("_")[0] for n in sorted_nodes]
-
+        labels = sorted_nodes
         fig = go.Figure(
             go.Sankey(
                 arrangement="snap",

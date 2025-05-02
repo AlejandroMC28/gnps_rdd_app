@@ -56,6 +56,7 @@ if sample_meta_up:
         sorted(meta_df[sample_group_col].dropna().unique()),
         default=None,
     )
+    reference_groups_sel = None
 elif gnps_file:
     gnps_df = _read_any(gnps_file)
     if "DefaultGroups" in gnps_df.columns:

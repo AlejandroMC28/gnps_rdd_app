@@ -37,6 +37,7 @@ dark_mode = st.checkbox("Dark mode")
 # ── draw button ────────────────────────────────────────────────────────
 if st.button("Draw Sankey"):
     # persist colour map only if provided
+    
     colour_path = None
     if color_map_up:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
