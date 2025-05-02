@@ -1,26 +1,66 @@
 # home.py
 import os, sys, streamlit as st
+from pathlib import Path
 
-ROOT = os.path.abspath(os.path.dirname(__file__))
-SRC = os.path.join(ROOT, "src")
-if SRC not in sys.path:
-    sys.path.insert(0, SRC)
+# ---------------------------------------------------------------------
+#  Boiler‑plate: make “src/” importable
+# ---------------------------------------------------------------------
+ROOT = Path(__file__).resolve().parent
+SRC  = ROOT / "src"
+sys.path.insert(0, str(SRC))
 
-st.set_page_config(page_title="RDD Metabolomics", layout="wide")
+# ---------------------------------------------------------------------
+#  Page config
+# ---------------------------------------------------------------------
+st.set_page_config(
+    page_title="RDD Metabolomics",
+    page_icon="🧬",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
-st.title("Reference Data-Driven (RDD) Metabolomics App")
-st.markdown(
+# Helper to build internal links (works in local & Cloud run)
+def _page_url(stem: str) -> str:           # e.g.  '05_How_to_Use'
+    return f"./{stem}"
+
+# ---------------------------------------------------------------------
+#  TITLE  &  INTRO
+# ---------------------------------------------------------------------
+st.title("🧬 Reference Data‑Driven (RDD) Metabolomics app")
+
+st.write(
     """
-Use the sidebar to:  
-1. **Create** an RDD count table  
-2. **Visualise** bar / box / heat maps  
-3. **Run PCA**  
-4. **Explore Sankey** flows  
-
+This application turns untargeted LC‑MS data into **actionable biological
+insight** by matching your spectra against richly annotated **reference
+libraries**.
 """
 )
 
+
+# ---------------------------------------------------------------------
+#  WHAT THE APP CAN DO
+# ---------------------------------------------------------------------
+st.header("What can I do with the app?")
+
+st.markdown(
+    """
+1. **Create an RDD count table** from a GNPS molecular network  
+2. **Explore & visualise** any ontology level (bar / box / heat maps)  
+3. **Run PCA** (with optional CLR transform) in one click  
+4. **Trace hierarchical flows** with an interactive Sankey diagram  
+"""
+)
+
+st.success(
+    f"👋 First time here? Have a look at the "
+    f"How to use page."
+)
+
+# ---------------------------------------------------------------------
+#  SESSION‑STATE REMINDER
+# ---------------------------------------------------------------------
 if "rdd" in st.session_state:
-    st.success("RDDCounts object is already in memory ✅")
+    st.success("RDDCounts object detected — you’re ready to explore ✅")
 else:
-    st.info("⬅️ Head to **Create RDD Count Table** to begin")
+    st.info("⬅️ Go to **Create RDD Count Table** in the sidebar to begin.")
+
