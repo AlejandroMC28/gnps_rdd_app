@@ -28,9 +28,27 @@ max_level = st.number_input(
     "Maximum hierarchy level", 1, rdd.levels, rdd.levels, step=1
 )
 
-color_map_up = st.file_uploader(
-    "Colour-mapping CSV (`descriptor;color_code`, optional)", type=("csv", "tsv", "txt")
-)
+def load_demo_file(filename):
+    import io
+    ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    path = os.path.join(ROOT, "data", filename)
+    with open(path, "rb") as f:
+        file_obj = io.BytesIO(f.read())
+        file_obj.name = filename
+        return file_obj
+
+color_map_up = None
+if st.session_state.get("use_demo"):
+    # Automatically use demo color map if in demo mode
+    try:
+        color_map_up = load_demo_file("sample_type_hierarchy.csv")
+        st.info("Demo color map loaded automatically.")
+    except Exception:
+        st.warning("Demo color map not found.")
+else:
+    color_map_up = st.file_uploader(
+        "Colour-mapping CSV (`descriptor;color_code`, optional)", type=("csv", "tsv", "txt")
+    )
 
 dark_mode = st.checkbox("Dark mode")
 

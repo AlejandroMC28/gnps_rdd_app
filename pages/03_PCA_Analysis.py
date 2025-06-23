@@ -41,7 +41,7 @@ if st.button("Run PCA"):
     backend = PlotlyBackend() if backend_choice == "Plotly" else MatplotlibBackend()
     viz = Visualizer(backend)
 
-    fig_scatter = viz.plot_pca_results(pca_df, ev, group_by=True, group_column="group")
+    fig_scatter = viz.plot_pca_results(pca_df, ev, group_by=True, group_column=chosen_gc)
     fig_ev = viz.plot_explained_variance(ev)
 
     (st.plotly_chart if backend_choice == "Plotly" else st.pyplot)(
