@@ -1,0 +1,148 @@
+# GNPS RDD App
+
+A Streamlit web application for Reference Data-Driven (RDD) analysis of GNPS molecular networking data.
+
+## Overview
+
+This application helps researchers analyze GNPS (Global Natural Products Social Molecular Networking) data using a reference-driven approach. It enables ontology-based counting, visualization, and statistical analysis of metabolomics data.
+
+## Features
+
+- **RDD Count Table Generation** - Create reference data-driven counts from GNPS networks
+- **Interactive Visualizations** - Box plots, heatmaps, and bar charts for data exploration
+- **PCA Analysis** - Principal Component Analysis with CLR transformation
+- **Sankey Diagrams** - Flow visualization of metabolite classifications
+- **GNPS Integration** - Direct access via Task ID or file upload
+
+## Installation
+
+### Requirements
+
+- Python 3.11+
+- pip
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/AlejandroMC28/gnps_rdd_app.git
+cd gnps_rdd_app
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+## Running the App
+
+```bash
+streamlit run Home.py
+```
+
+The app will open in your default browser at `http://localhost:8501`
+
+## Usage
+
+### 1. Create RDD Count Table
+- Upload GNPS network file or enter GNPS Task ID
+- Select sample types (simple/complex/all)
+- Choose sample groups
+- Generate RDD counts across ontology levels
+
+### 2. Visualize Data
+- Create box plots, heatmaps, and bar charts
+- Compare different sample groups
+- Explore reference type distributions
+
+### 3. PCA Analysis
+- Perform dimensionality reduction
+- Apply CLR transformation
+- Visualize sample clustering
+
+### 4. Sankey Diagrams
+- Visualize metabolite classification flows
+- Track ontology hierarchies
+
+## Project Structure
+
+```
+gnps_rdd_app/
+├── Home.py                 # Main entry point
+├── pages/                  # Streamlit pages
+│   ├── 01_Create_RDD_Count_Table.py
+│   ├── 02_Visualizations.py
+│   ├── 03_PCA_Analysis.py
+│   ├── 04_Sankey_Diagram.py
+│   └── 05_How_to_Use.py
+├── src/                    # Core modules
+│   ├── RDDcounts.py       # RDD analysis class
+│   ├── utils.py           # Utility functions
+│   ├── analysis.py        # PCA and statistics
+│   ├── visualization.py   # Plotting functions
+│   └── state_helpers.py   # Session state management
+├── data/                   # Demo data files
+├── tests/                  # Test suite
+└── requirements.txt        # Python dependencies
+```
+
+## Testing
+
+```bash
+# Run all tests
+make test
+
+# Or using pytest directly
+pytest -v
+
+# Check code quality
+make lint
+
+# Format code
+make format
+```
+
+See [README_TESTING.md](README_TESTING.md) for more details.
+
+## Development
+
+### Key Dependencies
+
+- **Streamlit** - Web application framework
+- **Pandas/NumPy** - Data manipulation
+- **Plotly/Matplotlib** - Visualizations
+- **scikit-learn** - PCA analysis
+- **scikit-bio** - CLR transformation
+- **gnpsdata** - GNPS data access
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests: `make test`
+5. Format code: `make format`
+6. Submit a pull request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details
+
+## Citation
+
+If you use this tool in your research, please cite:
+
+```
+[Citation information to be added]
+```
+
+## Contact
+
+For questions or issues, please open a GitHub issue.
+
+## Acknowledgments
+
+- GNPS team for the molecular networking platform
+- Wang Bioinformatics Lab for the GNPSDataPackage
