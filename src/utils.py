@@ -7,6 +7,7 @@ from typing import List, Optional, Tuple
 
 # Third-party imports
 import pandas as pd
+from gnpsdata import workflow_classicnetworking
 
 
 def _load_RDD_metadata(
@@ -34,8 +35,14 @@ def _load_RDD_metadata(
     """
     if external_metadata:
         if not external_metadata.lower().endswith((".csv", ".tsv", ".txt")):
-            raise ValueError("External metadata file must be a CSV, TSV, or TXT.")
-        sep = "\t" if external_metadata.lower().endswith((".tsv", ".txt")) else ","
+            raise ValueError(
+                "External metadata file must be a CSV, TSV, or TXT."
+            )
+        sep = (
+            "\t"
+            if external_metadata.lower().endswith((".tsv", ".txt"))
+            else ","
+        )
         try:
             reference_metadata = pd.read_csv(external_metadata, sep=sep)
         except FileNotFoundError:
@@ -102,13 +109,15 @@ def _load_sample_types(
     # Rename user-defined ontology columns
     renamed_columns = [f"{col}{i+1}" for i, col in enumerate(ontology_columns)]
     renamer = dict(zip(ontology_columns, renamed_columns))
-    df = reference_metadata[["filename", "sample_name", *ontology_columns]].rename(
-        columns=renamer
-    )
+    df = reference_metadata[
+        ["filename", "sample_name", *ontology_columns]
+    ].rename(columns=renamer)
     return df.set_index("filename"), renamed_columns
 
 
-def _validate_groups(gnps_network: pd.DataFrame, groups_included: List[str]) -> None:
+def _validate_groups(
+    gnps_network: pd.DataFrame, groups_included: List[str]
+) -> None:
     """
     Validates that the provided group names exist in the GNPS network data.
 
@@ -134,34 +143,63 @@ def _validate_groups(gnps_network: pd.DataFrame, groups_included: List[str]) -> 
         )
 
 
-def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
+def normalize_network(
+    gnps_network: pd.DataFrame,
+    sample_groups: Optional[List[str]] = None,
+    reference_groups: Optional[List[str]] = None,
+) -> pd.DataFrame:
     """
-    Normalize the GNPS network to extract unique (filename, cluster_index) pairs.
+    Normalize GNPS network data to a standard format with 'filename' and 'cluster_index' columns.
+
+    This function takes either GNPS1 (classic) or GNPS2 data formats and converts them
+    to a unified structure for downstream RDD analysis.
 
     Parameters
     ----------
     gnps_network : pd.DataFrame
-        Raw GNPS network file.
-    sample_groups : list of str, optional
-        Sample groups to retain.
-    reference_groups : list of str, optional
-        Reference groups to retain.
+        Raw GNPS network data from either GNPS1 or GNPS2.
+    sample_groups : List[str], optional
+        Sample group identifiers (e.g., ["G1", "G2"]). Required for GNPS1 data
+        (with UniqueFileSources) which needs explicit group filtering.
+    reference_groups : List[str], optional
+        Reference group identifiers (e.g., ["G3", "G4"]). Required for GNPS1 data
+        (with UniqueFileSources) which needs explicit group filtering.
 
     Returns
     -------
     pd.DataFrame
-        Normalized DataFrame with columns 'filename' and 'cluster_index'.
+        Normalized DataFrame with standardized columns 'filename' and 'cluster_index'.
+
+    Raises
+    ------
+    ValueError
+        If processing GNPS1 data and sample_groups or reference_groups are not provided.
     """
     network = gnps_network.copy()
 
     if "UniqueFileSources" in network.columns:
-        groups = {f"G{i}" for i in range(1, 7)}
-        groups_excluded = list(groups - set([*sample_groups, *reference_groups]))
+        # GNPS1 (Classic) - requires group filtering
+        if not sample_groups or not reference_groups:
+            raise ValueError(
+                "GNPS1 data (with UniqueFileSources) requires both sample_groups and "
+                "reference_groups for filtering. GNPS2 data does not require groups."
+            )
+
+        groups = {
+            col for col in gnps_network.columns if re.match(r"^G\d+$", col)
+        }
+        groups_excluded = list(
+            groups - set([*sample_groups, *reference_groups])
+        )
+
         df_selected = gnps_network[
-            (gnps_network[sample_groups] > 0).all(axis=1)
-            & (gnps_network[reference_groups] > 0).any(axis=1)
+            (
+                (gnps_network[sample_groups] > 0).any(axis=1)
+                | (gnps_network[reference_groups] > 0).any(axis=1)
+            )
             & (gnps_network[groups_excluded] == 0).all(axis=1)
         ].copy()
+
         df_exploded = df_selected.assign(
             filename=df_selected["UniqueFileSources"].str.split("|")
         ).explode("filename")
@@ -171,11 +209,18 @@ def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
             .drop_duplicates()
             .reset_index(drop=True)
         )
-        df_normalized.rename(columns={"cluster index": "cluster_index"}, inplace=True)
-        df_normalized["filename"] = remove_filename_extension(df_normalized["filename"])
-        return df_normalized
+        df_normalized.rename(
+            columns={"cluster index": "cluster_index"}, inplace=True
+        )
+        df_normalized["filename"] = remove_filename_extension(
+            df_normalized["filename"]
+        )
+
     else:
-        network["#Filename"] = network["#Filename"].str.replace("input_spectra/", "")
+        # GNPS2 - direct column renaming, no group filtering needed
+        network["#Filename"] = network["#Filename"].str.replace(
+            "input_spectra/", ""
+        )
         network.rename(
             columns={"#Filename": "filename", "#ClusterIdx": "cluster_index"},
             inplace=True,
@@ -185,9 +230,11 @@ def normalize_network(gnps_network, sample_groups=None, reference_groups=None):
             .drop_duplicates()
             .reset_index(drop=True)
         )
-        df_normalized["filename"] = remove_filename_extension(df_normalized["filename"])
+        df_normalized["filename"] = remove_filename_extension(
+            df_normalized["filename"]
+        )
 
-        return df_normalized
+    return df_normalized
 
 
 def get_sample_metadata(
@@ -206,7 +253,7 @@ def get_sample_metadata(
     sample_groups : list of str, optional
         List of sample group names to extract from the GNPS network.
     external_sample_metadata : str, optional
-        Path to an external sample metadata file (CSV).
+        Path to an external sample metadata file (CSV, TSV, or TXT).
     filename_col : str, optional
         Column name for filenames in the metadata file. Default is "filename".
 
@@ -223,33 +270,57 @@ def get_sample_metadata(
 
     if external_sample_metadata:
 
-        if not external_sample_metadata.lower().endswith((".csv", ".tsv", ".txt")):
-            raise ValueError("External metadata file must be a CSV, TSV, or TXT.")
+        if not external_sample_metadata.lower().endswith(
+            (".csv", ".tsv", ".txt")
+        ):
+            raise ValueError(
+                "External metadata file must be a CSV, TSV, or TXT."
+            )
         sep = (
-            "\t" if external_sample_metadata.lower().endswith((".tsv", ".txt")) else ","
+            "\t"
+            if external_sample_metadata.lower().endswith((".tsv", ".txt"))
+            else ","
         )
         try:
             sample_metadata = pd.read_csv(external_sample_metadata, sep=sep)
         except FileNotFoundError:
             raise FileNotFoundError(
                 f"External metadata file '{external_sample_metadata}' not found."
+            ) from None
+        if filename_col not in sample_metadata.columns:
+            raise KeyError(
+                f"Column '{filename_col}' not found in external_sample_metadata."
             )
-        sample_metadata.rename(columns={filename_col: "filename"}, inplace=True)
+        sample_metadata.rename(
+            columns={filename_col: "filename"}, inplace=True
+        )
         sample_metadata["filename"] = remove_filename_extension(
             sample_metadata["filename"]
         )
         return sample_metadata
     else:
+        if raw_gnps_network is None:
+            raise ValueError(
+                "raw_gnps_network is required when external_sample_metadata is not provided."
+            )
+        if not sample_groups:
+            raise ValueError(
+                "sample_groups must be provided when deriving sample metadata from the GNPS network."
+            )
         df_filtered = raw_gnps_network[
             ~raw_gnps_network["DefaultGroups"].str.contains(",")
         ]
-        df_selected = df_filtered[df_filtered["DefaultGroups"].isin(sample_groups)]
+        df_selected = df_filtered[
+            df_filtered["DefaultGroups"].isin(sample_groups)
+        ]
         df_exploded_files = df_selected.assign(
             UniqueFileSources=df_selected["UniqueFileSources"].str.split("|")
         ).explode("UniqueFileSources")
         sample_metadata = df_exploded_files[
             ["DefaultGroups", "UniqueFileSources"]
-        ].rename(columns={"DefaultGroups": "group", "UniqueFileSources": "filename"})
+        ].rename(
+            columns={"DefaultGroups": "group", "UniqueFileSources": "filename"}
+        )
         sample_metadata["filename"] = remove_filename_extension(
             sample_metadata["filename"]
         )
@@ -320,22 +391,24 @@ def split_reference_sample(
 
 def remove_filename_extension(filename_col):
     """
-    Removes the file extension from a filename column in a DataFrame.
+    Removes the file extension from a pandas Series of filenames.
 
     Parameters
     ----------
-    filename_col : str
-        The name of the column containing filenames.
+    filename_col : pd.Series
+        A pandas Series containing filenames.
 
     Returns
     -------
-    str
-        The filename without its extension.
+    pd.Series
+        A pandas Series containing filenames without their extensions.
     """
     return filename_col.str.replace(r"\.[^.]+$", "", regex=True)
 
 
-def RDD_counts_to_wide(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFrame:
+def RDD_counts_to_wide(
+    RDD_counts: pd.DataFrame, level: int = None
+) -> pd.DataFrame:
     """
     Convert the RDD counts dataframe from long to wide format for a specific
     ontology level, with 'group' as part of the columns. If the data is already
@@ -370,7 +443,9 @@ def RDD_counts_to_wide(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFr
             raise ValueError(
                 "Multiple levels found in the data. Please specify a level to convert to wide format."
             )
-        level = levels_in_data[0]  # If the data is already filtered, use that level
+        level = levels_in_data[
+            0
+        ]  # If the data is already filtered, use that level
 
     # Filter the RDD counts dataframe by the specified level, if not already filtered
     filtered_RDD_counts = RDD_counts[RDD_counts["level"] == level]
@@ -400,7 +475,9 @@ def RDD_counts_to_wide(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFr
     return wide_format_RDD_counts
 
 
-def calculate_proportions(RDD_counts: pd.DataFrame, level: int = None) -> pd.DataFrame:
+def calculate_proportions(
+    RDD_counts: pd.DataFrame, level: int = None
+) -> pd.DataFrame:
     """
     Calculate the proportion of each reference type within each sample for a given
     level.
@@ -434,7 +511,9 @@ def calculate_proportions(RDD_counts: pd.DataFrame, level: int = None) -> pd.Dat
             raise ValueError(
                 "Multiple levels found in the data. Please specify a level to calculate proportions."
             )
-        level = levels_in_data[0]  # If the data is already filtered, use that level
+        level = levels_in_data[
+            0
+        ]  # If the data is already filtered, use that level
 
     # Use the existing function to convert to wide format
     df_wide = RDD_counts_to_wide(RDD_counts, level)
@@ -451,3 +530,30 @@ def calculate_proportions(RDD_counts: pd.DataFrame, level: int = None) -> pd.Dat
     )
 
     return df_proportions
+
+
+def get_gnps_task_data(task_id: str, gnps2=True) -> pd.DataFrame:
+    """
+    Retrieve GNPS task data using the workflow_classicnetworking module.
+
+    Parameters
+    ----------
+    task_id : str
+        The GNPS task ID to retrieve data for.
+    gnps2 : bool, optional
+        Whether to use GNPS2 API, by default True.
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe with the cluster data.
+    """
+    if gnps2:
+        cluster_data = workflow_classicnetworking.get_clusterinfo_dataframe(
+            task_id, gnps2=gnps2
+        )
+    else:
+        cluster_data = workflow_classicnetworking.get_clustersummary_dataframe(
+            task_id, gnps2=gnps2
+        )
+    return cluster_data

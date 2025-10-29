@@ -6,7 +6,7 @@ from pathlib import Path
 #  Boiler‑plate: make “src/” importable
 # ---------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent
-SRC  = ROOT / "src"
+SRC = ROOT / "src"
 sys.path.insert(0, str(SRC))
 
 # ---------------------------------------------------------------------
@@ -14,19 +14,21 @@ sys.path.insert(0, str(SRC))
 # ---------------------------------------------------------------------
 st.set_page_config(
     page_title="RDD Metabolomics",
-    page_icon="🧬",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
+
 # Helper to build internal links (works in local & Cloud run)
-def _page_url(stem: str) -> str:           # e.g.  '05_How_to_Use'
+def _page_url(stem: str) -> str:  # e.g.  '05_How_to_Use'
     return f"./{stem}"
+
 
 # ---------------------------------------------------------------------
 #  TITLE  &  INTRO
 # ---------------------------------------------------------------------
-st.title("🧬 Reference Data‑Driven (RDD) Metabolomics app")
+st.title("Reference Data‑Driven (RDD) Metabolomics app")
 
 st.write(
     """
@@ -51,10 +53,7 @@ st.markdown(
 """
 )
 
-st.success(
-    f"👋 First time here? Have a look at the "
-    f"How to use page."
-)
+st.success(f"👋 First time here? Have a look at the " f"How to use page.")
 
 # ---------------------------------------------------------------------
 #  SESSION‑STATE REMINDER
@@ -63,4 +62,3 @@ if "rdd" in st.session_state:
     st.success("RDDCounts object detected — you’re ready to explore ✅")
 else:
     st.info("⬅️ Go to **Create RDD Count Table** in the sidebar to begin.")
-

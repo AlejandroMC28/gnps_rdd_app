@@ -2,20 +2,21 @@
 
 # Standard library imports
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 # Third-party imports
 import numpy as np
 import pandas as pd
 
 # Internal imports
-from utils import (
+from .utils import (
     _load_RDD_metadata,
     _load_sample_types,
     _validate_groups,
     get_sample_metadata,
     normalize_network,
     split_reference_sample,
+    get_gnps_task_data,
 )
 
 
@@ -52,35 +53,64 @@ class RDDCounts:
 
     def __init__(
         self,
-        gnps_network_path: str,
         sample_types: str,
-        sample_groups: List[str] = None,
-        reference_groups: List[str] = None,
+        gnps_network_path: Optional[str] = None,
+        sample_groups: Optional[List[str]] = None,
+        reference_groups: Optional[List[str]] = None,
         sample_group_col: str = "group",
         levels: int = 6,
         external_reference_metadata: Optional[str] = None,
         external_sample_metadata: Optional[str] = None,
         ontology_columns: Optional[List[str]] = None,
+        blank_identifier: str = "water",
+        task_id: Optional[str] = None,
+        gnps_2: bool = True,
     ) -> None:
 
-        self.raw_gnps_network = pd.read_csv(gnps_network_path, sep="\t")
+        if (task_id is None) == (gnps_network_path is None):
+            raise ValueError(
+                "Provide exactly one of task_id or gnps_network_path."
+            )
+        if task_id is None:
+            self.raw_gnps_network = pd.read_csv(gnps_network_path, sep="\t")
+        else:
+            gnps_data = get_gnps_task_data(task_id, gnps_2)
+            self.raw_gnps_network = gnps_data
         self.sample_types = sample_types
         self.sample_groups = sample_groups
         self.reference_groups = reference_groups
         self.levels = levels
         self.sample_group_col = sample_group_col
+        self.blank_identifier = blank_identifier
 
-        self.reference_metadata = _load_RDD_metadata(external_reference_metadata)
+        self.reference_metadata = _load_RDD_metadata(
+            external_reference_metadata
+        )
         self.sample_metadata = get_sample_metadata(
             self.raw_gnps_network,
             sample_groups,
             external_sample_metadata,
             filename_col="filename",
         )
-        self.sample_types_df, self.ontology_columns_renamed = _load_sample_types(
-            self.reference_metadata,
-            sample_types,
-            ontology_columns=ontology_columns,
+        self.sample_types_df, self.ontology_columns_renamed = (
+            _load_sample_types(
+                self.reference_metadata,
+                sample_types,
+                ontology_columns=ontology_columns,
+            )
+        )
+
+        if self.ontology_columns_renamed:
+            if self.levels > len(self.ontology_columns_renamed):
+                raise ValueError(
+                    f"levels ({self.levels}) exceeds provided ontology columns "
+                    f"({len(self.ontology_columns_renamed)})."
+                )
+
+        self.ontology_table = (
+            self.sample_types_df.copy()
+            .drop(columns=["sample_name"], errors="ignore")
+            .drop_duplicates()
         )
         self.normalized_network = normalize_network(
             self.raw_gnps_network, self.sample_groups, self.reference_groups
@@ -111,6 +141,10 @@ class RDDCounts:
             The name of the ontology column corresponding to the specified level.
         """
         if self.ontology_columns_renamed:
+            if level < 1 or level > len(self.ontology_columns_renamed):
+                raise ValueError(
+                    f"Invalid level {level}; expected 1..{len(self.ontology_columns_renamed)}."
+                )
             return self.ontology_columns_renamed[level - 1]
         return f"sample_type_group{level}"
 
@@ -177,6 +211,8 @@ class RDDCounts:
             inplace=True,
         )
 
+        self.shared_clusters = shared_clusters
+
         cluster_count = (
             shared_clusters.groupby(["filename_sample", reference_name_col])
             .size()
@@ -192,9 +228,12 @@ class RDDCounts:
             inplace=True,
         )
         cluster_count_long["level"] = 0
-        cluster_count_long["group"] = cluster_count_long.merge(
-            self.sample_metadata, on="filename", how="inner"
-        )[self.sample_group_col]
+        filename_to_group = self.sample_metadata.set_index("filename")[
+            self.sample_group_col
+        ].to_dict()
+        cluster_count_long["group"] = cluster_count_long["filename"].map(
+            filename_to_group
+        )
         return cluster_count_long
 
     def create_RDD_counts_all_levels(self) -> pd.DataFrame:
@@ -221,7 +260,9 @@ class RDDCounts:
             RDD_counts_file_level
         ]  # Initialize a list for storing data at all levels
         if "reference_type" not in RDD_counts_file_level.columns:
-            raise ValueError("Expected 'reference_type' column in file-level counts.")
+            raise ValueError(
+                "Expected 'reference_type' column in file-level counts."
+            )
         RDD_counts_file_level_sample_types = RDD_counts_file_level.merge(
             self.sample_types_df,
             left_on="reference_type",
@@ -237,9 +278,9 @@ class RDDCounts:
             ontology_col = self._get_ontology_column_for_level(level)
 
             RDD_counts_level = (
-                RDD_counts_file_level_sample_types.groupby(["filename", ontology_col])[
-                    "count"
-                ]
+                RDD_counts_file_level_sample_types.groupby(
+                    ["filename", ontology_col]
+                )["count"]
                 .sum()
                 .reset_index()
             )
@@ -251,20 +292,22 @@ class RDDCounts:
                 fill_value=0,
             ).reset_index()
 
-            if "water" in wide_format_counts.columns:
-                water_counts = wide_format_counts["water"]
+            if self.blank_identifier in wide_format_counts.columns:
+                water_counts = wide_format_counts[self.blank_identifier]
                 columns_to_modify = wide_format_counts.columns.difference(
-                    ["filename", "water"]
+                    ["filename", self.blank_identifier]
                 )
-                wide_format_counts.loc[:, columns_to_modify] = wide_format_counts.loc[
+                wide_format_counts.loc[
                     :, columns_to_modify
-                ].where(
+                ] = wide_format_counts.loc[:, columns_to_modify].where(
                     wide_format_counts.loc[:, columns_to_modify].gt(
                         water_counts, axis=0
                     ),
                     0,
                 )
-                wide_format_counts = wide_format_counts.drop(columns=["water"])
+                wide_format_counts = wide_format_counts.drop(
+                    columns=[self.blank_identifier]
+                )
 
             wide_format_counts = wide_format_counts.loc[
                 :, (wide_format_counts != 0).any(axis=0)
@@ -280,7 +323,9 @@ class RDDCounts:
 
             RDD_counts_all_levels.append(RDD_counts_level)
 
-        RDD_counts_all_levels = pd.concat(RDD_counts_all_levels, ignore_index=True)
+        RDD_counts_all_levels = pd.concat(
+            RDD_counts_all_levels, ignore_index=True
+        )
 
         # Map group information from the sample_metadata to the final DataFrame
         RDD_counts_all_levels["group"] = RDD_counts_all_levels["filename"].map(
@@ -288,96 +333,238 @@ class RDDCounts:
         )
 
         # Cast 'count' as an integer
-        RDD_counts_all_levels["count"] = RDD_counts_all_levels["count"].astype(int)
+        RDD_counts_all_levels["count"] = RDD_counts_all_levels["count"].astype(
+            int
+        )
 
         return RDD_counts_all_levels
 
     def filter_counts(
-        self, reference_types: Optional[List[str]] = None, level: int = 3
+        self,
+        reference_types: Optional[List[str]] = None,
+        level: int = 3,
+        sample_names: Optional[Union[str, List[str]]] = None,
+        group: Optional[Union[str, List[str]]] = None,
+        top_n: Optional[int] = None,
+        top_n_method: str = "per_sample",
+        upper_level: Optional[int] = None,
+        lower_level: Optional[int] = None,
+        upper_level_reference_types: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """
-        Filters the RDD counts based on reference types and ontology level.
+        Filters the RDD counts by reference types, ontology level, sample names, groups,
+        and optionally by top N types.
 
         Parameters
         ----------
         reference_types : list of str, optional
-            List of reference types to filter by. If None, all reference types at the specified
-            level are included. Defaults to None.
+            List of reference types to filter by.
         level : int, optional
-            The ontology level to filter the RDD counts by. Defaults to 3.
+            Ontology level to filter by. Defaults to 3.
+        sample_names : str or list of str, optional
+            Filter by specific sample name(s).
+        group : str or list of str, optional
+            Filter by specific sample group(s).
+        top_n : int, optional
+            Select the top N reference types based on the method defined in `top_n_method`.
+        top_n_method : str, optional
+            Method to select top N reference types. Options:
+            - 'per_sample': Top N per sample (union across samples)
+            - 'total': Top N by total counts across all samples
+            - 'average': Top N by mean count per sample
 
         Returns
         -------
         pd.DataFrame
-            A DataFrame containing the filtered RDD counts with columns: filename,
-            reference type, level, count, and group.
-
-        Raises
-        ------
-        ValueError
-            If the  RDD counts have not been yet created
+            Filtered RDD counts dataframe.
         """
         if self.counts is None:
-            raise ValueError(
-                "RDD counts have not been created yet. Call create() first."
+            raise ValueError("RDD counts are not initialized.")
+
+        if upper_level is not None and lower_level is not None:
+            if upper_level >= lower_level:
+                raise ValueError("upper_level must be lower than lower_level.")
+
+            if upper_level_reference_types is None:
+                raise ValueError(
+                    "Must provide upper_level_reference_types when using upper_level filtering."
+                )
+
+            # Resolve level column names via helper to support both default and custom columns
+            upper_ontology_col = self._get_ontology_column_for_level(
+                upper_level
             )
-        if reference_types is None:
-            filtered_df = self.counts[self.counts["level"] == level]
-            return filtered_df
-        filtered_df = self.counts[
-            (self.counts["reference_type"].isin(reference_types))
-            & (self.counts["level"] == level)
-        ]
+            lower_ontology_col = self._get_ontology_column_for_level(
+                lower_level
+            )
+
+            # Matching lower-level reference types
+            reference_types = (
+                self.ontology_table[
+                    self.ontology_table[upper_ontology_col].isin(
+                        upper_level_reference_types
+                    )
+                ][lower_ontology_col]
+                .dropna()
+                .unique()
+                .tolist()
+            )
+
+            # Override level to lower_level for filtering
+            level = lower_level
+
+        # Filter by ontology level
+        filtered_df = self.counts[self.counts["level"] == level]
+
+        # Filter by sample name(s)
+        if sample_names:
+            if isinstance(sample_names, str):
+                sample_names = [sample_names]
+            filtered_df = filtered_df[
+                filtered_df["filename"].isin(sample_names)
+            ]
+
+        # Filter by group(s)
+        if group is not None:
+            if isinstance(group, str):
+                group = [group]
+            filtered_df = filtered_df[filtered_df["group"].isin(group)]
+
+        # Select top N reference types if requested
+        if top_n is not None:
+            if top_n_method == "per_sample":
+                top_df = (
+                    filtered_df.sort_values(
+                        ["filename", "count"], ascending=[True, False]
+                    )
+                    .groupby("filename")
+                    .head(top_n)
+                    .reset_index(drop=True)
+                )
+                top_reference_types = (
+                    top_df["reference_type"].dropna().unique().tolist()
+                )
+
+            elif top_n_method == "total":
+                top_reference_types = (
+                    filtered_df.groupby("reference_type")["count"]
+                    .sum()
+                    .nlargest(top_n)
+                    .index.tolist()
+                )
+
+            elif top_n_method == "average":
+                top_reference_types = (
+                    filtered_df.groupby("reference_type")["count"]
+                    .mean()
+                    .nlargest(top_n)
+                    .index.tolist()
+                )
+
+            else:
+                raise ValueError(
+                    "Invalid top_n_method. Choose from 'per_sample', 'total', or 'average'."
+                )
+
+            filtered_df = filtered_df[
+                filtered_df["reference_type"].isin(top_reference_types)
+            ]
+
+        # Filter again by explicitly provided reference_types
+        if reference_types is not None:
+            filtered_df = filtered_df[
+                filtered_df["reference_type"].isin(reference_types)
+            ]
+
         return filtered_df
 
-    def update_groups(self, metadata_file: str, merge_column: str) -> None:
+    def update_groups(
+        self,
+        metadata_source: Union[str, dict],
+        merge_column: Optional[str] = None,
+    ) -> None:
         """
         Updates the 'group' column in the RDD counts and sample_metadata
         DataFrames based on user-provided metadata.
 
         Parameters
         ----------
-        metadata_file : str
-            Path to the metadata file (CSV or TSV) containing updated group
-            information.
-        merge_column : str
+        metadata_source : str or dict
+            Either:
+            - Path to the metadata file (CSV or TSV) containing updated group information, or
+            - Dictionary mapping from current group values to new group values
+            (e.g., {"G1": "Vegan", "G2": "Omnivore"})
+        merge_column : str, optional
             The column in the metadata file to use for updating the group information.
+            Required when metadata_source is a file path, ignored when it's a dictionary.
 
         Raises
         ------
         ValueError
-            If the metadata file is not a valid CSV or TSV file or if the necessary
-            columns are missing.
+            If the metadata file is not a valid CSV or TSV file, if the necessary
+            columns are missing, or if merge_column is not provided for file input.
         """
-        # Detect file extension to determine the separator
-        file_extension = os.path.splitext(metadata_file)[1].lower()
-        if file_extension == ".csv":
-            metadata = pd.read_csv(metadata_file)
-        elif file_extension in [".tsv", ".txt"]:
-            metadata = pd.read_csv(metadata_file, sep="\t")
-        else:
-            raise ValueError("Metadata file must be either a CSV or TSV.")
 
-        # Ensure that the metadata contains the necessary columns
-        if not {"filename", merge_column}.issubset(metadata.columns):
-            raise ValueError(
-                f"Metadata file must contain 'filename' and '{merge_column}' columns."
+        if isinstance(metadata_source, dict):
+            # Dictionary mapping: map current group values to new ones
+            group_mapping = metadata_source
+
+            # Update the 'group' column in counts using the mapping
+            self.counts["group"] = (
+                self.counts["group"]
+                .map(group_mapping)
+                .fillna(self.counts["group"])
             )
 
-        # Create a mapping from filename to new group
-        filename_to_group = metadata.set_index("filename")[merge_column].to_dict()
+            # Update the sample_metadata using the sample_group_col
+            self.sample_metadata[self.sample_group_col] = (
+                self.sample_metadata[self.sample_group_col]
+                .map(group_mapping)
+                .fillna(self.sample_metadata[self.sample_group_col])
+            )
 
-        # Update the 'group' column in counts
-        self.counts["group"] = (
-            self.counts["filename"].map(filename_to_group).fillna(self.counts["group"])
-        )
+        else:
+            # File-based mapping: existing functionality
+            if merge_column is None:
+                raise ValueError(
+                    "merge_column must be provided when metadata_source is a file path."
+                )
 
-        # Update the sample_metadata
-        self.sample_metadata["group"] = (
-            self.sample_metadata["filename"]
-            .map(filename_to_group)
-            .fillna(self.sample_metadata["group"])
-        )
+            metadata_file = metadata_source
+
+            # Detect file extension to determine the separator
+            file_extension = os.path.splitext(metadata_file)[1].lower()
+            if file_extension == ".csv":
+                metadata = pd.read_csv(metadata_file)
+            elif file_extension in [".tsv", ".txt"]:
+                metadata = pd.read_csv(metadata_file, sep="\t")
+            else:
+                raise ValueError("Metadata file must be either a CSV or TSV.")
+
+            # Ensure that the metadata contains the necessary columns
+            if not {"filename", merge_column}.issubset(metadata.columns):
+                raise ValueError(
+                    f"Metadata file must contain 'filename' and '{merge_column}' columns."
+                )
+
+            # Create a mapping from filename to new group
+            filename_to_group = metadata.set_index("filename")[
+                merge_column
+            ].to_dict()
+
+            # Update the 'group' column in counts
+            self.counts["group"] = (
+                self.counts["filename"]
+                .map(filename_to_group)
+                .fillna(self.counts["group"])
+            )
+
+            # Update the sample_metadata
+            self.sample_metadata[self.sample_group_col] = (
+                self.sample_metadata["filename"]
+                .map(filename_to_group)
+                .fillna(self.sample_metadata[self.sample_group_col])
+            )
 
     def generate_RDDflows(
         self,
@@ -404,7 +591,9 @@ class RDDCounts:
         """
         # Use provided max_hierarchy_level or default to the instance's levels
         max_level = (
-            max_hierarchy_level if max_hierarchy_level is not None else self.levels
+            max_hierarchy_level
+            if max_hierarchy_level is not None
+            else self.levels
         )
 
         # Filter counts by filename if a filter is specified
@@ -461,7 +650,9 @@ class RDDCounts:
 
         # Build processes from unique nodes in flows
         all_nodes = (
-            pd.concat([flows_df["source"], flows_df["target"]]).dropna().unique()
+            pd.concat([flows_df["source"], flows_df["target"]])
+            .dropna()
+            .unique()
         )
         processes_df = pd.DataFrame(
             {
