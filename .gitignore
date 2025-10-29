@@ -7,3 +7,5 @@ logs/
 debug.log
 .streamlit/
 testing_notebooks/
+coverage.xml
+
