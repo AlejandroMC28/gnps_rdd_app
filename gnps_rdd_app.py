@@ -18,9 +18,17 @@ importlib.reload(pages.create_food_counts)
 importlib.reload(pg) """
 
 
-st.set_page_config(page_title="GNPS-RDD app", page_icon="🍋", initial_sidebar_state="auto")
+st.set_page_config(
+    page_title="GNPS-RDD app", page_icon="🍋", initial_sidebar_state="auto"
+)
 
-pages = ['Home', 'Create count table', 'Dynamic filtering & visualization', "PCA", "Sankey Diagram"]
+pages = [
+    "Home",
+    "Create count table",
+    "Dynamic filtering & visualization",
+    "PCA",
+    "Sankey Diagram",
+]
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,7 +49,7 @@ styles = {
         "color": "var(--text-color)",
         "font-weight": "normal",
         "padding": "14px",
-    }
+    },
 }
 options = {
     "show_menu": True,
@@ -57,7 +65,7 @@ page = st_navbar(
 functions = {
     "Home": pg.show_home,
     "Create Food Counts": pg.show_create_food_counts,
-    "Dynamic filtering & visualization":pg.show_visualization
+    "Dynamic filtering & visualization": pg.show_visualization,
 }
 go_to = functions.get(page)
 if go_to:

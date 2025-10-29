@@ -1,10 +1,21 @@
-streamlit==1.35.0
-pandas
-plotly
-matplotlib
-seaborn
-scikit-learn
-numpy
-floweaver
-streamlit_navigation_bar
+# ───────── core app ─────────
+streamlit>=1.50     # UI framework
+plotly>=5.20        # interactive figures (bar/box/heat/Sankey, PCA)
+matplotlib>=3.8     # static backend
+seaborn>=0.13       # nicer Matplotlib styling
 
+# ───────── data science stack ─────────
+pandas>=2.2         # tabular data
+numpy>=2.3          # numerical base
+scikit-learn>=1.4   # PCA (sklearn.decomposition)
+scikit-bio>=0.7.1   # CLR transformation
+
+# ───────── GNPS data access ─────────
+gnpsdata @ git+https://github.com/Wang-Bioinformatics-Lab/GNPSDataPackage.git@f4ca8d9b7fab87823179b122b7e4a0a0b62e9d65
+
+# ───────── optional / indirect ─────────
+# pyarrow is auto-installed by pandas ≥2 for fast parquet/feather,
+# but including it avoids the "optional dependency" warning.
+pyarrow>=15.0
+# ─── new line ───
+setuptools>=68.0    
