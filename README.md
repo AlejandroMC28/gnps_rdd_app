@@ -14,6 +14,10 @@ This application helps researchers analyze GNPS (Global Natural Products Social 
 - **Sankey Diagrams** - Flow visualization of metabolite classifications
 - **GNPS Integration** - Direct access via Task ID or file upload
 
+## 🌐 Live App
+
+Access the app online at: **https://gnpsrdd.streamlit.app/**
+
 ## Installation
 
 ### Requirements
@@ -21,7 +25,9 @@ This application helps researchers analyze GNPS (Global Natural Products Social 
 - Python 3.11+
 - pip
 
-### Setup
+## Local Development
+
+To run the app locally:
 
 ```bash
 # Clone the repository
@@ -34,11 +40,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-## Running the App
-
-```bash
+# Run the app
 streamlit run Home.py
 ```
 
@@ -66,27 +69,6 @@ The app will open in your default browser at `http://localhost:8501`
 - Visualize metabolite classification flows
 - Track ontology hierarchies
 
-## Project Structure
-
-```
-gnps_rdd_app/
-├── Home.py                 # Main entry point
-├── pages/                  # Streamlit pages
-│   ├── 01_Create_RDD_Count_Table.py
-│   ├── 02_Visualizations.py
-│   ├── 03_PCA_Analysis.py
-│   ├── 04_Sankey_Diagram.py
-│   └── 05_How_to_Use.py
-├── src/                    # Core modules
-│   ├── RDDcounts.py       # RDD analysis class
-│   ├── utils.py           # Utility functions
-│   ├── analysis.py        # PCA and statistics
-│   ├── visualization.py   # Plotting functions
-│   └── state_helpers.py   # Session state management
-├── data/                   # Demo data files
-├── tests/                  # Test suite
-└── requirements.txt        # Python dependencies
-```
 
 ## Testing
 
@@ -104,7 +86,6 @@ make lint
 make format
 ```
 
-See [README_TESTING.md](README_TESTING.md) for more details.
 
 ## Development
 
@@ -128,7 +109,7 @@ See [README_TESTING.md](README_TESTING.md) for more details.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details
+Apache license 2.0
 
 ## Citation
 
@@ -142,7 +123,3 @@ If you use this tool in your research, please cite:
 
 For questions or issues, please open a GitHub issue.
 
-## Acknowledgments
-
-- GNPS team for the molecular networking platform
-- Wang Bioinformatics Lab for the GNPSDataPackage
