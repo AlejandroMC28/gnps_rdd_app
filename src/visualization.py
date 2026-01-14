@@ -43,12 +43,8 @@ def sort_nodes_by_flow(flows_df, processes_df):
         if getattr(processes_df.index, "name", None) == "id":
             processes_df = processes_df.reset_index()
         else:
-            unique_nodes = pd.concat(
-                [flows_df["source"], flows_df["target"]]
-            ).unique()
-            processes_df = pd.DataFrame(
-                {"id": unique_nodes, "level": 0}
-            )  # Assign default level
+            unique_nodes = pd.concat([flows_df["source"], flows_df["target"]]).unique()
+            processes_df = pd.DataFrame({"id": unique_nodes, "level": 0})  # Assign default level
 
     # Ensure "level" column exists
     if "level" not in processes_df.columns:
@@ -77,9 +73,7 @@ def sort_nodes_by_flow(flows_df, processes_df):
     )
 
     # Subsequent levels: Align with previous levels
-    for level in range(
-        first_level_new + 1, max(nodes_per_level_new.keys()) + 1
-    ):
+    for level in range(first_level_new + 1, max(nodes_per_level_new.keys()) + 1):
         if level in nodes_per_level_new:
             previous_level_nodes = sorted_nodes_per_level_new[level - 1]
             current_level_nodes = nodes_per_level_new[level]
@@ -87,13 +81,8 @@ def sort_nodes_by_flow(flows_df, processes_df):
             # Map connections to the current level
             connections_new = defaultdict(list)
             for _, row in flows_df.iterrows():
-                if (
-                    row["source"] in previous_level_nodes
-                    and row["target"] in current_level_nodes
-                ):
-                    connections_new[row["source"]].append(
-                        (row["target"], row["value"])
-                    )
+                if row["source"] in previous_level_nodes and row["target"] in current_level_nodes:
+                    connections_new[row["source"]].append((row["target"], row["value"]))
 
             # Sort current level nodes based on previous level
             sorted_current_level_new = []
@@ -109,9 +98,7 @@ def sort_nodes_by_flow(flows_df, processes_df):
                     )
 
             # Add unconnected nodes
-            remaining_nodes_new = set(current_level_nodes) - set(
-                sorted_current_level_new
-            )
+            remaining_nodes_new = set(current_level_nodes) - set(sorted_current_level_new)
             sorted_current_level_new.extend(remaining_nodes_new)
 
             sorted_nodes_per_level_new[level] = sorted_current_level_new
@@ -253,17 +240,9 @@ def filter_and_group_RDD_counts(
         raise ValueError("No data available for the specified filters.")
 
     if group_by:
-        data = (
-            filtered_counts.groupby(["reference_type", "group"])["count"]
-            .sum()
-            .reset_index()
-        )
+        data = filtered_counts.groupby(["reference_type", "group"])["count"].sum().reset_index()
     else:
-        data = (
-            filtered_counts.groupby("reference_type")["count"]
-            .sum()
-            .reset_index()
-        )
+        data = filtered_counts.groupby("reference_type")["count"].sum().reset_index()
 
     return data
 
@@ -284,9 +263,7 @@ def prepare_boxplot_data(
     Prepare the RDD proportions data for box plotting.
     """
     # Calculate proportions from complete dataset first
-    df_proportions = calculate_proportions(
-        RDD_counts_instance.counts, level=level
-    )
+    df_proportions = calculate_proportions(RDD_counts_instance.counts, level=level)
 
     # Convert to long format
     df_long = df_proportions.reset_index().melt(
@@ -299,9 +276,7 @@ def prepare_boxplot_data(
     if upper_level is not None and upper_level_reference_types is not None:
         # Get the mapping between upper and lower levels
         ontology_table = RDD_counts_instance.ontology_table
-        upper_col = RDD_counts_instance.get_ontology_column_for_level(
-            upper_level
-        )
+        upper_col = RDD_counts_instance.get_ontology_column_for_level(upper_level)
         lower_col = RDD_counts_instance.get_ontology_column_for_level(level)
 
         # Filter to only include reference types under the specified upper level types
@@ -330,9 +305,7 @@ def prepare_boxplot_data(
         if top_n_method == "per_sample":
             # Top N reference types per sample
             top_refs = (
-                df_long.sort_values(
-                    ["filename", "proportion"], ascending=[True, False]
-                )
+                df_long.sort_values(["filename", "proportion"], ascending=[True, False])
                 .groupby("filename", as_index=False, sort=False)
                 .head(top_n)["reference_type"]
                 .unique()
@@ -340,10 +313,7 @@ def prepare_boxplot_data(
         elif top_n_method == "total":
             # Get top N reference types overall
             top_refs = (
-                df_long.groupby("reference_type")["proportion"]
-                .sum()
-                .nlargest(top_n)
-                .index.tolist()
+                df_long.groupby("reference_type")["proportion"].sum().nlargest(top_n).index.tolist()
             )
         elif top_n_method == "average":
             # Get top N reference types by average proportion
@@ -400,9 +370,7 @@ def prepare_heatmap_data(
         df_proportions_filtered = df_proportions
 
     # Ensure only numeric columns remain
-    reference_type_columns = df_proportions_filtered.select_dtypes(
-        include=["int", "float"]
-    ).columns
+    reference_type_columns = df_proportions_filtered.select_dtypes(include=["int", "float"]).columns
     return df_proportions_filtered[reference_type_columns]
 
 
@@ -540,9 +508,7 @@ class MatplotlibBackend(VisualizationBackend):
             The rendered Matplotlib figure.
         """
         plt.figure(figsize=figsize)
-        ax = sns.heatmap(
-            data, cmap="viridis", annot=False, cbar=True, **kwargs
-        )
+        ax = sns.heatmap(data, cmap="viridis", annot=False, cbar=True, **kwargs)
         ax.set_title(f"Proportion Heatmap of reference types (Level {level})")
         ax.set_xlabel("reference types")
         ax.set_ylabel("Samples")
@@ -604,12 +570,8 @@ class MatplotlibBackend(VisualizationBackend):
             sns.scatterplot(x=x_pc, y=y_pc, data=pca_df, ax=ax)
 
         ax.set_title("PCA Plot of RDD Counts")
-        ax.set_xlabel(
-            f"{x_pc} [{explained_variance[int(x_pc[2]) - 1] * 100:.1f}%]"
-        )
-        ax.set_ylabel(
-            f"{y_pc} [{explained_variance[int(y_pc[2]) - 1] * 100:.1f}%]"
-        )
+        ax.set_xlabel(f"{x_pc} [{explained_variance[int(x_pc[2]) - 1] * 100:.1f}%]")
+        ax.set_ylabel(f"{y_pc} [{explained_variance[int(y_pc[2]) - 1] * 100:.1f}%]")
         plt.tight_layout()
 
         return fig
@@ -668,9 +630,7 @@ class MatplotlibBackend(VisualizationBackend):
         NotImplementedError
             If this method is called.
         """
-        raise NotImplementedError(
-            "Sankey diagram visualization is not supported in Matplotlib."
-        )
+        raise NotImplementedError("Sankey diagram visualization is not supported in Matplotlib.")
 
 
 class PlotlyBackend(VisualizationBackend):
@@ -747,13 +707,7 @@ class PlotlyBackend(VisualizationBackend):
                         boxpoints="all",
                         jitter=0.3,
                         pointpos=0,
-                        marker=dict(
-                            color=(
-                                group_colors.get(group)
-                                if group_colors
-                                else None
-                            )
-                        ),
+                        marker=dict(color=(group_colors.get(group) if group_colors else None)),
                         offsetgroup=i,
                     )
                 )
@@ -770,11 +724,7 @@ class PlotlyBackend(VisualizationBackend):
                         jitter=0.3,
                         pointpos=0,
                         marker=dict(
-                            color=(
-                                group_colors.get(reference_type)
-                                if group_colors
-                                else None
-                            )
+                            color=(group_colors.get(reference_type) if group_colors else None)
                         ),
                     )
                 )
@@ -879,13 +829,7 @@ class PlotlyBackend(VisualizationBackend):
                         y=group_data[y_pc],
                         mode="markers",
                         name=group,
-                        marker=dict(
-                            color=(
-                                group_colors.get(group)
-                                if group_colors
-                                else None
-                            )
-                        ),
+                        marker=dict(color=(group_colors.get(group) if group_colors else None)),
                     )
                 )
         else:
@@ -990,21 +934,18 @@ class PlotlyBackend(VisualizationBackend):
         target_indices = flows_df["target"].map(node_indices)
         values = flows_df["value"]
 
-        # Load and verify the color mapping
-        color_df = pd.read_csv(color_mapping_file, sep=";")
-        color_df["color_code"] = color_df["color_code"].fillna("#D3D3D3")
-        color_mapping = {
-            row["descriptor"]: row["color_code"]
-            for _, row in color_df.iterrows()
-        }
+        # Load and verify the color mapping if file is provided
+        if color_mapping_file is not None:
+            color_df = pd.read_csv(color_mapping_file, sep=";")
+            color_df["color_code"] = color_df["color_code"].fillna("#D3D3D3")
+            color_mapping = {row["descriptor"]: row["color_code"] for _, row in color_df.iterrows()}
+        else:
+            # Use default gray color if no mapping file provided
+            color_mapping = {}
 
         # Assign colors to nodes and links
-        node_colors = [
-            color_mapping.get(node, "#D3D3D3") for node in sorted_nodes
-        ]
-        link_colors = [
-            color_mapping.get(node, "#D3D3D3") for node in flows_df["source"]
-        ]
+        node_colors = [color_mapping.get(node, "#D3D3D3") for node in sorted_nodes]
+        link_colors = [color_mapping.get(node, "#D3D3D3") for node in flows_df["source"]]
 
         # Create Sankey diagram
         fig = go.Figure(
@@ -1218,9 +1159,7 @@ class Visualizer:  # pragma: no cover
             The rendered heatmap.
         """
         # Prepare data
-        data = prepare_heatmap_data(
-            RDD_counts_instance, level, reference_types
-        )
+        data = prepare_heatmap_data(RDD_counts_instance, level, reference_types)
 
         # Render using the backend
         return self.backend.plot_RDD_proportion_heatmap(

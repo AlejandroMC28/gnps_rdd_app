@@ -390,6 +390,14 @@ if "rdd" in st.session_state:
                             on="filename",
                             how="left",
                         )
+
+                        # Also update the original sample_group_col if it's different from "group"
+                        if (
+                            rdd.sample_group_col != "group"
+                            and rdd.sample_group_col in rdd.sample_metadata.columns
+                        ):
+                            rdd.sample_metadata[rdd.sample_group_col] = rdd.sample_metadata["group"]
+
                     st.session_state["rdd"] = rdd
                     st.session_state["demo_groups_applied"] = True
                     st.success(
@@ -439,34 +447,44 @@ if "rdd" in st.session_state:
         sep = "\t" if ext in (".tsv", ".txt") else ","
         mapping_df = pd.read_csv(mapping_file, sep=sep)
 
+        # Strip file extensions from filenames to match RDD data format
+        mapping_df["filename"] = mapping_df["filename"].str.replace(
+            r"\.(mzML|mzXML|mgf|mzml|mzxml)$", "", regex=True
+        )
+
         # Preview the mapping file
-        st.markdown("**Preview of mapping file:**")
+        st.markdown("**Preview of mapping file (after removing extensions):**")
         st.dataframe(mapping_df.head())
 
         if st.button("🔄 Apply Custom Group Mapping", key="apply_custom_mapping"):
             if {"filename", "new_group"}.issubset(mapping_df.columns):
-                rdd.counts = rdd.counts.merge(
-                    mapping_df[["filename", "new_group"]],
-                    left_on="filename",
-                    right_on="filename",
-                    how="left",
-                )
-                rdd.counts["group"] = rdd.counts["new_group"].combine_first(rdd.counts["group"])
-                rdd.counts.drop(columns=["new_group"], inplace=True)
+                # Save the mapping file temporarily to use with update_groups
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tmp:
+                    mapping_df.to_csv(tmp.name, index=False)
+                    tmp_path = tmp.name
 
-                # Update sample_metadata with new group assignments
-                if "group" in rdd.counts.columns and "filename" in rdd.counts.columns:
-                    rdd.sample_metadata = rdd.sample_metadata.drop(
-                        "group", axis=1, errors="ignore"
-                    ).merge(
-                        rdd.counts[["filename", "group"]].drop_duplicates(),
-                        on="filename",
-                        how="left",
+                try:
+                    # Use the built-in update_groups method - just updates labels, doesn't recalculate
+                    rdd.update_groups(tmp_path, merge_column="new_group")
+
+                    # Ensure the visualization 'group' column is synced
+                    set_group(rdd, rdd.sample_group_col)
+
+                    st.session_state["rdd"] = rdd
+                    st.session_state["custom_mapping_applied"] = True
+                    st.success("✅ Custom group assignments applied!")
+
+                    # Show updated counts to verify the change
+                    st.markdown("**Updated counts (first 15 rows):**")
+                    st.dataframe(
+                        rdd.counts[["filename", "reference_type", "count", "level", "group"]].head(
+                            15
+                        )
                     )
-
-                st.session_state["rdd"] = rdd
-                st.success("✅ Custom group assignments applied!")
-                st.dataframe(rdd.counts.head(15))
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(tmp_path):
+                        os.unlink(tmp_path)
                 st.rerun()
             else:
                 st.error("❌ Mapping file must have columns: filename, new_group")

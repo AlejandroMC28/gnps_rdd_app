@@ -6,7 +6,6 @@ SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from src.state_helpers import set_group  # noqa: E402
 from src.visualization import Visualizer, PlotlyBackend, MatplotlibBackend  # noqa: E402
 
 if "rdd" not in st.session_state:
@@ -15,20 +14,11 @@ if "rdd" not in st.session_state:
 
 rdd = st.session_state["rdd"]
 
-# ------------- group selector (dynamic) -------------
-groupable = [c for c in rdd.sample_metadata.columns if c != "filename"]
-curr_gc = st.session_state.get("group_column", "group")
-
-chosen_gc = st.selectbox(
-    "Grouping column",
-    groupable,
-    index=groupable.index(curr_gc) if curr_gc in groupable else 0,
-)
-
-if chosen_gc != curr_gc:
-    set_group(rdd, chosen_gc)
-    st.rerun()
-# ----------------------------------------------------
+# Show current grouping info (read-only)
+if st.session_state.get("custom_mapping_applied", False):
+    st.info("📊 **Custom group mapping applied** (Change via mapping file on page 1)")
+else:
+    st.info("📊 **Using original groups** (Apply custom mapping on page 1)")
 
 backend_choice = st.radio("Backend", ("Plotly", "Matplotlib"), horizontal=True)
 backend = PlotlyBackend() if backend_choice == "Plotly" else MatplotlibBackend()
@@ -52,9 +42,7 @@ if st.button("Render plots"):
         )
 
     with tab_box:
-        fig = viz.box_plot_RDD_proportions(
-            rdd, level, sel_types or None, group_by=group_toggle
-        )
+        fig = viz.box_plot_RDD_proportions(rdd, level, sel_types or None, group_by=group_toggle)
         (st.plotly_chart if backend_choice == "Plotly" else st.pyplot)(
             fig, use_container_width=True
         )
