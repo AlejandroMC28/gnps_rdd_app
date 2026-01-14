@@ -51,11 +51,11 @@ with st.expander("ℹ️ What data do I need for RDD analysis?"):
     - Your molecular networking results from GNPS
     - Can be uploaded as a file or fetched via GNPS Task ID
     
-    **2. Reference Metadata** (Optional - preloaded by default)
+    **2. Reference Metadata** (Global foodomics project data preloaded by default; possible to add custom)
     - Links reference spectra to their known biological origin using ontology hierarchies
     - **Default:** Uses preloaded foodomics reference library with hierarchical food classifications
     - **Custom:** Upload your own reference metadata to use different ontology systems
-    - **Columns needed:** `filename` (spectrum identifier) + hierarchical ontology columns (e.g., `kingdom`, `phylum`, `class`, etc.)
+    - **Columns needed:** `filename` (spectrum identifier) + sample_name + ontology columns (e.g., `kingdom`, `phylum`, `class`, etc.)
     
     **3. Sample Metadata** (Required for GNPS2, Optional for GNPS1/uploads)
     - Maps your sample files to experimental groups (e.g., treatment vs control)
@@ -63,10 +63,6 @@ with st.expander("ℹ️ What data do I need for RDD analysis?"):
     - **For GNPS1/File Upload:** Can use DefaultGroups from the network file if no custom metadata provided
     - **Columns needed:** `filename` (sample identifier) + `group` (or your chosen grouping column)
     
-    ### Summary
-    - **Minimum to start:** GNPS network data only (uses default reference metadata and network groups)
-    - **Recommended:** Add sample metadata to define meaningful experimental groups
-    - **Advanced:** Provide custom reference metadata for non-food metabolomics studies
     """
     )
 
@@ -109,14 +105,14 @@ elif input_method == "Upload File":
         help="Required: Your GNPS molecular networking output file",
     )
     sample_meta_up = st.file_uploader(
-        "Sample metadata (optional)",
+        "Sample metadata (GNPS2 requires; optional for GNPS1/file upload)",
         type=("csv", "tsv", "txt"),
         help="Optional: Maps filenames to experimental groups. If not provided, uses DefaultGroups from network file.",
     )
     ref_meta_up = st.file_uploader(
-        "Reference metadata (optional - uses preloaded foodomics data if not provided)",
+        "Reference metadata (uses preloaded foodomics data if not provided)",
         type=("csv", "tsv", "txt"),
-        help="Optional: Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
+        help="Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
     )
 else:  # GNPS Task ID
     gnps_task_id = st.text_input(
@@ -143,9 +139,9 @@ else:  # GNPS Task ID
         help="For GNPS2: REQUIRED to define sample groups. For GNPS1: Optional, uses DefaultGroups if not provided.",
     )
     ref_meta_up = st.file_uploader(
-        "Reference metadata (optional - uses preloaded foodomics data if not provided)",
+        "Reference metadata (uses preloaded foodomics data if not provided)",
         type=("csv", "tsv", "txt"),
-        help="Optional: Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
+        help="Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
     )
 
 # -------- discover grouping options --------
