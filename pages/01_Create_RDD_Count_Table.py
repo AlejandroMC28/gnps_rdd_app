@@ -252,7 +252,14 @@ elif gnps_task_id and input_method == "GNPS Task ID":
 # -------- other parameters --------
 sample_type = st.selectbox("Reference sample type", ("all", "simple", "complex"))
 ontology_cols = st.text_input("Custom ontology columns (comma-separated)", "")
-levels_val = st.number_input("Maximum ontology levels to analyse", 1, 10, 6, 1)
+levels_val = st.number_input(
+    "Maximum ontology levels to analyse",
+    0,
+    10,
+    6,
+    1,
+    help="Set to 0 for file-level counts only (no ontology aggregation)",
+)
 
 if ontology_cols and levels_val > len([c for c in ontology_cols.split(",") if c.strip()]):
     st.warning("Reducing 'levels' to match number of ontology columns.")
