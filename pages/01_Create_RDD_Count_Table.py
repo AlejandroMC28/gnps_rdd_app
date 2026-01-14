@@ -41,6 +41,35 @@ def load_demo_file(filename):
 # ────────────────────── UI ──────────────────────
 st.header("Create RDD Count Table")
 
+# -------- METADATA EXPLANATION SECTION --------
+with st.expander("ℹ️ What data do I need for RDD analysis?"):
+    st.markdown(
+        """
+    ### Required Data
+    
+    **1. GNPS Network Data** (Required)
+    - Your molecular networking results from GNPS
+    - Can be uploaded as a file or fetched via GNPS Task ID
+    
+    **2. Reference Metadata** (Optional - preloaded by default)
+    - Links reference spectra to their known biological origin using ontology hierarchies
+    - **Default:** Uses preloaded foodomics reference library with hierarchical food classifications
+    - **Custom:** Upload your own reference metadata to use different ontology systems
+    - **Columns needed:** `filename` (spectrum identifier) + hierarchical ontology columns (e.g., `kingdom`, `phylum`, `class`, etc.)
+    
+    **3. Sample Metadata** (Required for GNPS2, Optional for GNPS1/uploads)
+    - Maps your sample files to experimental groups (e.g., treatment vs control)
+    - **For GNPS2:** Always required to define sample groupings
+    - **For GNPS1/File Upload:** Can use DefaultGroups from the network file if no custom metadata provided
+    - **Columns needed:** `filename` (sample identifier) + `group` (or your chosen grouping column)
+    
+    ### Summary
+    - **Minimum to start:** GNPS network data only (uses default reference metadata and network groups)
+    - **Recommended:** Add sample metadata to define meaningful experimental groups
+    - **Advanced:** Provide custom reference metadata for non-food metabolomics studies
+    """
+    )
+
 if "use_demo" not in st.session_state:
     st.session_state["use_demo"] = False
 
@@ -64,18 +93,30 @@ gnps_version = None
 
 if use_demo:
     gnps_file = load_demo_file("demo_gnps_network.tsv")
-    sample_meta_up = None  # Start with None for demo
+    sample_meta_up = load_demo_file("demo_gnps_metadata.csv")  # Load demo sample metadata
     ref_meta_up = load_demo_file("foodomics_multiproject_metadata.txt")
-    st.info("Demo data loaded. To use your own files, please reload the page.")
+    st.success(
+        "✅ Demo data loaded: GNPS network + sample metadata (Omnivore/Vegan groups) + reference metadata"
+    )
+    st.info("To use your own files, please reload the page.")
+    # Pre-set demo groups for GNPS1 format demo data
+    demo_sample_groups = ["G1", "G2"]
+    demo_reference_groups = ["G4"]
 elif input_method == "Upload File":
     gnps_file = st.file_uploader(
-        "GNPS molecular network (.csv / .tsv)", type=("csv", "tsv")
+        "GNPS molecular network (.csv / .tsv)",
+        type=("csv", "tsv"),
+        help="Required: Your GNPS molecular networking output file",
     )
     sample_meta_up = st.file_uploader(
-        "Sample metadata (optional)", type=("csv", "tsv", "txt")
+        "Sample metadata (optional)",
+        type=("csv", "tsv", "txt"),
+        help="Optional: Maps filenames to experimental groups. If not provided, uses DefaultGroups from network file.",
     )
     ref_meta_up = st.file_uploader(
-        "Reference metadata (optional)", type=("csv", "tsv", "txt")
+        "Reference metadata (optional - uses preloaded foodomics data if not provided)",
+        type=("csv", "tsv", "txt"),
+        help="Optional: Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
     )
 else:  # GNPS Task ID
     gnps_task_id = st.text_input(
@@ -89,11 +130,22 @@ else:  # GNPS Task ID
         horizontal=True,
         help="Select the GNPS version used for your analysis",
     )
+
+    # Show warning for GNPS2 about required sample metadata
+    if gnps_version == "GNPS2":
+        st.warning(
+            "⚠️ **GNPS2 requires sample metadata:** You must upload a sample metadata file with 'filename' and 'group' columns to define your experimental groups."
+        )
+
     sample_meta_up = st.file_uploader(
-        "Sample metadata (optional)", type=("csv", "tsv", "txt")
+        "Sample metadata (required for GNPS2, optional for GNPS1)",
+        type=("csv", "tsv", "txt"),
+        help="For GNPS2: REQUIRED to define sample groups. For GNPS1: Optional, uses DefaultGroups if not provided.",
     )
     ref_meta_up = st.file_uploader(
-        "Reference metadata (optional)", type=("csv", "tsv", "txt")
+        "Reference metadata (optional - uses preloaded foodomics data if not provided)",
+        type=("csv", "tsv", "txt"),
+        help="Optional: Hierarchical ontology annotations for reference spectra. Default foodomics metadata is used if not provided.",
     )
 
 # -------- discover grouping options --------
@@ -101,7 +153,14 @@ sample_group_col = "group"
 sample_groups_sel = []
 reference_groups_sel = None
 
-if sample_meta_up:
+# Handle demo data groups
+if use_demo:
+    sample_groups_sel = demo_sample_groups
+    reference_groups_sel = demo_reference_groups
+    st.info(
+        f"📊 Demo groups selected: Samples={sample_groups_sel}, References={reference_groups_sel}"
+    )
+elif sample_meta_up:
     meta_df = _read_any(sample_meta_up)
     sample_group_col = st.selectbox(
         "Column to group by",
@@ -137,9 +196,7 @@ elif gnps_task_id and input_method == "GNPS Task ID":
 
             if cache_key_groups not in st.session_state:
                 # GNPS1 requires group selection from the network data
-                with st.spinner(
-                    "📊 Fetching GNPS1 data to display available groups..."
-                ):
+                with st.spinner("📊 Fetching GNPS1 data to display available groups..."):
                     try:
                         from src.utils import get_gnps_task_data
 
@@ -153,9 +210,7 @@ elif gnps_task_id and input_method == "GNPS Task ID":
                             st.session_state[cache_key_df] = temp_gnps_df
                             st.success("✅ Groups loaded successfully!")
                         else:
-                            st.warning(
-                                "Could not find DefaultGroups column in GNPS1 data."
-                            )
+                            st.warning("Could not find DefaultGroups column in GNPS1 data.")
                             st.session_state[cache_key_groups] = []
                             st.session_state[cache_key_df] = None
                     except Exception as e:
@@ -181,19 +236,16 @@ elif gnps_task_id and input_method == "GNPS Task ID":
     else:
         # GNPS2 requires sample metadata to define groups
         if not sample_meta_up:
-            st.info(
-                "💡 When using GNPS2 Task ID, sample metadata is required to define sample groups."
+            st.error(
+                "❌ GNPS2 requires sample metadata! Please upload a file with 'filename' and 'group' columns above."
             )
+            st.stop()  # Prevent further execution without required metadata
         else:
             meta_df = _read_any(sample_meta_up)
             sample_group_col = st.selectbox(
                 "Column to group by",
                 meta_df.columns,
-                index=(
-                    list(meta_df.columns).index("group")
-                    if "group" in meta_df.columns
-                    else 0
-                ),
+                index=(list(meta_df.columns).index("group") if "group" in meta_df.columns else 0),
             )
             sample_groups_sel = st.multiselect(
                 "Sample groups to include",
@@ -206,9 +258,7 @@ sample_type = st.selectbox("Reference sample type", ("all", "simple", "complex")
 ontology_cols = st.text_input("Custom ontology columns (comma-separated)", "")
 levels_val = st.number_input("Maximum ontology levels to analyse", 1, 10, 6, 1)
 
-if ontology_cols and levels_val > len(
-    [c for c in ontology_cols.split(",") if c.strip()]
-):
+if ontology_cols and levels_val > len([c for c in ontology_cols.split(",") if c.strip()]):
     st.warning("Reducing 'levels' to match number of ontology columns.")
     levels_val = len([c for c in ontology_cols.split(",") if c.strip()])
 
@@ -233,16 +283,11 @@ if st.button("Generate RDD Counts"):
         if gnps_task_id:
             # Check if we have cached GNPS data (for GNPS1)
             cache_key_df = f"gnps1_df_{gnps_task_id}"
-            if (
-                cache_key_df in st.session_state
-                and st.session_state[cache_key_df] is not None
-            ):
+            if cache_key_df in st.session_state and st.session_state[cache_key_df] is not None:
                 # Use cached dataframe - save it to a temp file and use file path instead
                 with st.spinner("Using cached GNPS data..."):
                     cached_df = st.session_state[cache_key_df]
-                    with tempfile.NamedTemporaryFile(
-                        delete=False, suffix=".tsv", mode="w"
-                    ) as tmp:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".tsv", mode="w") as tmp:
                         cached_df.to_csv(tmp.name, sep="\t", index=False)
                         gnps_path = tmp.name
 
@@ -288,53 +333,117 @@ if st.button("Generate RDD Counts"):
         set_group(rdd, sample_group_col)
 
         st.session_state["rdd"] = rdd
-        st.dataframe(rdd.counts.head(15))
+        st.success("✅ RDDCounts object created successfully!")
 
-        st.success("RDDCounts object stored in session_state ✅")
+    except Exception as e:
+        st.exception(e)
 
-        # --- DEMO: Apply demo sample metadata as mapping file ---
-        if use_demo:
-            demo_mapping = load_demo_file("demo_gnps_metadata.csv")
-            mapping_df = pd.read_csv(demo_mapping)
-            mapping_df["filename"] = mapping_df["filename"].str.replace(".mzXML", "")
-            mapping_df["group"] = mapping_df["group"].str.replace("G1", "Omnivore")
-            mapping_df["group"] = mapping_df["group"].str.replace("G2", "Vegan")
-            # st.dataframe(mapping_df.head(25))
-            if {"filename", "group"}.issubset(mapping_df.columns):
-                rdd.counts = rdd.counts.drop("group", axis=1, errors="ignore").merge(
-                    mapping_df[["filename", "group"]],
-                    left_on="filename",
-                    right_on="filename",
-                    how="left",
-                )
-                # --- ADD THIS BLOCK ---
-                if "group" in rdd.counts.columns and "filename" in rdd.counts.columns:
-                    rdd.sample_metadata = rdd.sample_metadata.drop(
-                        "group", axis=1, errors="ignore"
-                    ).merge(
-                        rdd.counts[["filename", "group"]].drop_duplicates(),
-                        on="filename",
-                        how="left",
-                    )
-                # --- END ADD ---
-                st.session_state["rdd"] = rdd
-                st.success("Demo group assignments applied!")
-                st.dataframe(rdd.counts.sample(15))
-            else:
-                st.warning("Demo sample metadata must have columns: filename, group")
 
-        # --- Allow user to upload a mapping file to change group assignments ---
-        st.markdown("### Update Group Assignments")
-        mapping_file = st.file_uploader(
-            "Upload a mapping file (CSV/TSV: filename,new_group)",
-            type=["csv", "tsv"],
-            key="mapping",
+# -------- GROUP ASSIGNMENT SECTION (OUTSIDE BUTTON BLOCK) --------
+# This section allows updating group assignments and persists across reruns
+if "rdd" in st.session_state:
+    rdd = st.session_state["rdd"]
+
+    st.markdown("---")
+    st.markdown("### 🏷️ Update Group Assignments")
+
+    # Check if this is demo data
+    if use_demo and "demo_groups_applied" not in st.session_state:
+        st.info(
+            "🎯 **Demo Mode**: Click the button below to apply meaningful group names (Omnivore/Vegan) to your samples."
         )
 
-        if mapping_file:
-            ext = os.path.splitext(mapping_file.name)[1].lower()
-            sep = "\t" if ext in (".tsv", ".txt") else ","
-            mapping_df = pd.read_csv(mapping_file, sep=sep)
+        # Provide download button for demo mapping file as an example
+        demo_mapping_example = load_demo_file("demo_gnps_metadata.csv")
+        mapping_example_df = pd.read_csv(demo_mapping_example)
+        mapping_example_df["filename"] = mapping_example_df["filename"].str.replace(".mzXML", "")
+        mapping_example_df["group"] = mapping_example_df["group"].str.replace("G1", "Omnivore")
+        mapping_example_df["group"] = mapping_example_df["group"].str.replace("G2", "Vegan")
+
+        # Rename to match the expected format for custom mapping
+        mapping_example_for_download = mapping_example_df.rename(columns={"group": "new_group"})
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button(
+                "🔄 Apply Demo Group Names (G1→Omnivore, G2→Vegan)", key="apply_demo_groups"
+            ):
+                demo_mapping = load_demo_file("demo_gnps_metadata.csv")
+                mapping_df = pd.read_csv(demo_mapping)
+                mapping_df["filename"] = mapping_df["filename"].str.replace(".mzXML", "")
+                mapping_df["group"] = mapping_df["group"].str.replace("G1", "Omnivore")
+                mapping_df["group"] = mapping_df["group"].str.replace("G2", "Vegan")
+
+                if {"filename", "group"}.issubset(mapping_df.columns):
+                    rdd.counts = rdd.counts.drop("group", axis=1, errors="ignore").merge(
+                        mapping_df[["filename", "group"]],
+                        left_on="filename",
+                        right_on="filename",
+                        how="left",
+                    )
+                    # Update sample_metadata with new group assignments
+                    if "group" in rdd.counts.columns and "filename" in rdd.counts.columns:
+                        rdd.sample_metadata = rdd.sample_metadata.drop(
+                            "group", axis=1, errors="ignore"
+                        ).merge(
+                            rdd.counts[["filename", "group"]].drop_duplicates(),
+                            on="filename",
+                            how="left",
+                        )
+                    st.session_state["rdd"] = rdd
+                    st.session_state["demo_groups_applied"] = True
+                    st.success(
+                        "✅ Demo group assignments applied! Groups updated: G1 → Omnivore, G2 → Vegan"
+                    )
+                    st.dataframe(rdd.counts.sample(15))
+                    st.rerun()
+                else:
+                    st.warning("Demo sample metadata must have columns: filename, group")
+
+        with col2:
+            # Download button for example mapping file
+            mapping_csv = mapping_example_for_download.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Example Mapping File",
+                data=mapping_csv,
+                file_name="demo_group_mapping_example.csv",
+                mime="text/csv",
+                help="Download this example mapping file to see the required format (filename, new_group)",
+                key="download_demo_mapping",
+            )
+
+        # Show preview of what the mapping looks like
+        with st.expander("👁️ Preview Demo Mapping File Format"):
+            st.caption("This shows what a group mapping file should look like:")
+            st.dataframe(mapping_example_for_download.head(10))
+            st.info("**Required columns:** `filename` and `new_group`")
+
+    elif use_demo and "demo_groups_applied" in st.session_state:
+        st.success("✅ Demo groups already applied (Omnivore/Vegan)")
+
+    # --- Allow user to upload a mapping file to change group assignments ---
+    st.markdown("#### Upload Custom Group Mapping")
+    st.caption(
+        "Upload a CSV/TSV file with 'filename' and 'new_group' columns to reassign samples to different groups."
+    )
+
+    mapping_file = st.file_uploader(
+        "Upload a mapping file (CSV/TSV: filename,new_group)",
+        type=["csv", "tsv"],
+        key="mapping",
+        help="File should contain 'filename' column matching your sample names and 'new_group' column with new group assignments",
+    )
+
+    if mapping_file:
+        ext = os.path.splitext(mapping_file.name)[1].lower()
+        sep = "\t" if ext in (".tsv", ".txt") else ","
+        mapping_df = pd.read_csv(mapping_file, sep=sep)
+
+        # Preview the mapping file
+        st.markdown("**Preview of mapping file:**")
+        st.dataframe(mapping_df.head())
+
+        if st.button("🔄 Apply Custom Group Mapping", key="apply_custom_mapping"):
             if {"filename", "new_group"}.issubset(mapping_df.columns):
                 rdd.counts = rdd.counts.merge(
                     mapping_df[["filename", "new_group"]],
@@ -342,13 +451,8 @@ if st.button("Generate RDD Counts"):
                     right_on="filename",
                     how="left",
                 )
-                rdd.counts["group"] = rdd.counts["new_group"].combine_first(
-                    rdd.counts["group"]
-                )
+                rdd.counts["group"] = rdd.counts["new_group"].combine_first(rdd.counts["group"])
                 rdd.counts.drop(columns=["new_group"], inplace=True)
-                st.session_state["rdd"] = rdd
-                st.success("Group assignments updated!")
-                st.dataframe(rdd.counts.head(15))
 
                 # Update sample_metadata with new group assignments
                 if "group" in rdd.counts.columns and "filename" in rdd.counts.columns:
@@ -360,8 +464,81 @@ if st.button("Generate RDD Counts"):
                         how="left",
                     )
 
+                st.session_state["rdd"] = rdd
+                st.success("✅ Custom group assignments applied!")
+                st.dataframe(rdd.counts.head(15))
+                st.rerun()
             else:
-                st.error("Mapping file must have columns: filename, new_group")
+                st.error("❌ Mapping file must have columns: filename, new_group")
 
-    except Exception as e:
-        st.exception(e)
+# -------- DISPLAY LOADED METADATA (OUTSIDE BUTTON BLOCK) --------
+# This section persists across page reruns when RDD is in session_state
+if "rdd" in st.session_state:
+    rdd = st.session_state["rdd"]
+
+    st.markdown("---")
+    st.markdown("### 📊 Loaded Data Summary")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Reference Metadata**")
+        st.caption(
+            f"Shape: {rdd.reference_metadata.shape[0]} reference spectra × {rdd.reference_metadata.shape[1]} columns"
+        )
+        with st.expander("View reference metadata (first 10 rows)"):
+            st.dataframe(rdd.reference_metadata.head(10))
+
+        # Download button for reference metadata
+        ref_csv = rdd.reference_metadata.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Reference Metadata",
+            data=ref_csv,
+            file_name="reference_metadata.csv",
+            mime="text/csv",
+            help="Download the complete reference metadata as CSV",
+            key="download_ref_meta",
+        )
+
+        # Show ontology structure
+        ontology_info = f"**Ontology levels:** {rdd.levels}"
+        if rdd.ontology_columns_renamed:
+            ontology_info += (
+                f"\n\n**Custom ontology columns:** {', '.join(rdd.ontology_columns_renamed)}"
+            )
+        else:
+            ontology_cols = [f"sample_type_group{i}" for i in range(1, rdd.levels + 1)]
+            ontology_info += f"\n\n**Default ontology columns:** {', '.join(ontology_cols)}"
+        st.info(ontology_info)
+
+    with col2:
+        st.markdown("**Sample Metadata**")
+        st.caption(
+            f"Shape: {rdd.sample_metadata.shape[0]} samples × {rdd.sample_metadata.shape[1]} columns"
+        )
+        with st.expander("View sample metadata (first 10 rows)"):
+            st.dataframe(rdd.sample_metadata.head(10))
+
+        # Download button for sample metadata
+        sample_csv = rdd.sample_metadata.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Sample Metadata",
+            data=sample_csv,
+            file_name="sample_metadata.csv",
+            mime="text/csv",
+            help="Download the complete sample metadata as CSV",
+            key="download_sample_meta",
+        )
+
+        # Show grouping information
+        if "group" in rdd.sample_metadata.columns:
+            groups = rdd.sample_metadata["group"].value_counts()
+            group_info = f"**Grouping column:** `group`\n\n"
+            group_info += "**Groups:**\n"
+            for grp, cnt in groups.items():
+                group_info += f"- {grp}: {cnt} samples\n"
+            st.info(group_info)
+
+    st.markdown("---")
+    st.markdown("### 🔢 RDD Count Table Preview")
+    st.dataframe(rdd.counts.head(15))

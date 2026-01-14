@@ -52,7 +52,14 @@ st.markdown(
 4. **Trace hierarchical flows** with an interactive Sankey diagram  
 """
 )
-
+st.markdown(
+    """
+### 📁 What data do I need?
+- **GNPS network data** (required): Your molecular networking results
+- **Reference metadata** (optional): Preloaded foodomics library by default, or upload your own
+- **Sample metadata** (optional for most workflows): Define your experimental groups
+"""
+)
 st.success(f"👋 First time here? Have a look at the " f"How to use page.")
 
 # ---------------------------------------------------------------------
