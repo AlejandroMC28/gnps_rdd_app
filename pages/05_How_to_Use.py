@@ -26,7 +26,7 @@ Reference Data-Driven (RDD) metabolomics matches your experimental spectra again
    - Contains spectral similarity information and library matches
    - Can be uploaded as a file or fetched via GNPS Task ID
 
-2. **Reference Metadata** (Optional - Preloaded by Default)
+2. **Reference Metadata** (Preloaded by Default)
    - Links reference spectra to their known biological origins using hierarchical ontologies
    - **Default behavior:** Uses preloaded foodomics reference library with food classifications
    - **Custom option:** Upload your own reference metadata for non-food studies
