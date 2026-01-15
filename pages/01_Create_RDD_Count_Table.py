@@ -403,7 +403,9 @@ if "rdd" in st.session_state:
 
                     st.session_state["rdd"] = rdd
                     st.session_state["demo_groups_applied"] = True
-                    st.session_state["custom_mapping_applied"] = True  # Mark as custom mapping applied
+                    st.session_state["custom_mapping_applied"] = (
+                        True  # Mark as custom mapping applied
+                    )
                     st.success(
                         "✅ Demo group assignments applied! Groups updated: G1 → Omnivore, G2 → Vegan"
                     )
