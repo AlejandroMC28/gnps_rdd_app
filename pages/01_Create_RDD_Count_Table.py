@@ -221,11 +221,13 @@ elif gnps_task_id and input_method == "GNPS Task ID":
                     "Sample groups to include",
                     available_groups,
                     default=["G1"] if "G1" in available_groups else None,
+                    help="Leave blank to include all groups in the analysis",
                 )
                 reference_groups_sel = st.multiselect(
                     "Reference groups to include",
                     available_groups,
                     default=["G4"] if "G4" in available_groups else None,
+                    help="Leave blank to include all groups in the analysis",
                 )
         else:
             st.info("👆 Please enter a GNPS Task ID above to load available groups.")
@@ -247,6 +249,7 @@ elif gnps_task_id and input_method == "GNPS Task ID":
                 "Sample groups to include",
                 sorted(meta_df[sample_group_col].dropna().unique()),
                 default=None,
+                help="Leave blank to include all groups in the analysis",
             )
 
 # -------- other parameters --------
