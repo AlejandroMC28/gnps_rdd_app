@@ -256,12 +256,16 @@ levels_val = st.number_input(
     "Maximum ontology levels to analyse",
     0,
     10,
-    6,
+    None,
     1,
-    help="Set to 0 for file-level counts only (no ontology aggregation)",
+    help="Leave empty for automatic detection, or set to 0 for file-level counts only",
 )
 
-if ontology_cols and levels_val > len([c for c in ontology_cols.split(",") if c.strip()]):
+if (
+    ontology_cols
+    and levels_val
+    and levels_val > len([c for c in ontology_cols.split(",") if c.strip()])
+):
     st.warning("Reducing 'levels' to match number of ontology columns.")
     levels_val = len([c for c in ontology_cols.split(",") if c.strip()])
 
