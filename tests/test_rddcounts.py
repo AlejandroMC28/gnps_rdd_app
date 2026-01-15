@@ -4,7 +4,7 @@ Tests for the RDDCounts class in src/RDDcounts.py
 
 import pandas as pd
 import pytest
-from src.RDDcounts import RDDCounts
+from rdd import RDDCounts
 
 
 def test_rddcounts_invalid_initialization():

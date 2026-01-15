@@ -6,7 +6,7 @@ SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from src.visualization import Visualizer, PlotlyBackend, MatplotlibBackend  # noqa: E402
+from rdd.visualization import Visualizer, PlotlyBackend, MatplotlibBackend  # noqa: E402
 
 if "rdd" not in st.session_state:
     st.warning("First create an RDDCounts object.")

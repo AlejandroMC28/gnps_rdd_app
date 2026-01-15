@@ -1,10 +1,10 @@
 """
-Tests for utility functions in src/utils.py
+Tests for utility functions in rdd.utils module
 """
 
 import pandas as pd
 import pytest
-from src.utils import (
+from rdd.utils import (
     _load_RDD_metadata,
     remove_filename_extension,
     RDD_counts_to_wide,
@@ -39,7 +39,7 @@ def test_remove_filename_extension():
     series1 = pd.Series(["file.mzML"])
     series2 = pd.Series(["file.mzXML"])
     series3 = pd.Series(["file.txt"])
-    
+
     assert remove_filename_extension(series1)[0] == "file"
     assert remove_filename_extension(series2)[0] == "file"
     assert remove_filename_extension(series3)[0] == "file"

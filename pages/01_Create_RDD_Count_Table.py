@@ -9,7 +9,7 @@ SRC = os.path.join(ROOT, "src")
 if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
-from src.RDDcounts import RDDCounts  # noqa: E402
+from rdd import RDDCounts  # noqa: E402
 from src.state_helpers import set_group  # noqa: E402
 
 
@@ -194,7 +194,7 @@ elif gnps_task_id and input_method == "GNPS Task ID":
                 # GNPS1 requires group selection from the network data
                 with st.spinner("📊 Fetching GNPS1 data to display available groups..."):
                     try:
-                        from src.utils import get_gnps_task_data
+                        from rdd.utils import get_gnps_task_data
 
                         temp_gnps_df = get_gnps_task_data(gnps_task_id, gnps2=False)
                         if "DefaultGroups" in temp_gnps_df.columns:

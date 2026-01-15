@@ -1,9 +1,9 @@
 """
-Tests for analysis functions in src/analysis.py
+Tests for analysis functions in rdd.analysis module
 """
 
 import inspect
-from src.analysis import perform_pca_RDD_counts
+from rdd.analysis import perform_pca_RDD_counts
 
 
 def test_perform_pca_function_exists():
