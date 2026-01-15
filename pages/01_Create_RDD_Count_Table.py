@@ -167,6 +167,7 @@ elif sample_meta_up:
         "Sample groups to include",
         sorted(meta_df[sample_group_col].dropna().unique()),
         default=None,
+        help="Leave blank to include all groups in the analysis",
     )
 elif gnps_file:
     gnps_df = _read_any(gnps_file)
@@ -175,11 +176,13 @@ elif gnps_file:
             "Sample groups to include",
             sorted(gnps_df["DefaultGroups"].dropna().unique()),
             default="G1",
+            help="Leave blank to include all groups in the analysis",
         )
         reference_groups_sel = st.multiselect(
             "Reference groups to include",
             sorted(gnps_df["DefaultGroups"].dropna().unique()),
             default="G4",
+            help="Leave blank to include all groups in the analysis",
         )
 elif gnps_task_id and input_method == "GNPS Task ID":
     # For GNPS1, we need to fetch data to get available groups
