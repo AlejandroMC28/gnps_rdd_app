@@ -120,6 +120,11 @@ else:  # GNPS Task ID
         placeholder="e.g., b93a540abded417ab1e2a285544a148c",
         help="Enter the task ID from your GNPS job URL",
     )
+
+    st.info(
+        "ℹ️ **Note:** Some GNPS jobs may not be accessible via Task ID due to server issues or archiving. "
+        "If you encounter errors, please download the network file from your GNPS job page and use the 'Upload File' option instead."
+    )
     gnps_version = st.radio(
         "GNPS Version:",
         ("GNPS2", "GNPS1 (Classic)"),
@@ -213,7 +218,23 @@ elif gnps_task_id and input_method == "GNPS Task ID":
                             st.session_state[cache_key_groups] = []
                             st.session_state[cache_key_df] = None
                     except Exception as e:
-                        st.error(f"Failed to fetch GNPS data: {e}")
+                        error_msg = str(e)
+                        st.error(f"❌ Failed to fetch GNPS data: {error_msg}")
+
+                        # Check if it's an HTTP 500 error or similar server error
+                        if "500" in error_msg or "HTTP" in error_msg.upper():
+                            st.warning(
+                                "⚠️ **Cannot Access GNPS Data via API**\n\n"
+                                "This may occur due to archived jobs, server issues, or API problems.\n\n"
+                                "**Alternative Solution:**\n"
+                                "1. Visit your GNPS job page\n"
+                                "2. Download the network file:\n"
+                                "   - **GNPS1:** Look for `METABOLOMICS-SNETS-V2-[taskid]-view_all_clusters_withID_beta-main.tsv`\n"
+                                "   - **GNPS2:** Look for `clusterinfo.tsv`\n"
+                                "3. Return to this page and select 'Upload File' instead of 'GNPS Task ID'\n"
+                                "4. Upload your downloaded network file"
+                            )
+
                         st.session_state[cache_key_groups] = []
                         st.session_state[cache_key_df] = None
 
@@ -256,7 +277,16 @@ elif gnps_task_id and input_method == "GNPS Task ID":
             )
 
 # -------- other parameters --------
-sample_type = st.selectbox("Reference sample type", ("all", "simple", "complex"))
+sample_type = st.selectbox(
+    "Reference sample type",
+    ("all", "simple", "complex"),
+    help="For foodomics data: 'simple' = single ingredient, 'complex' = multiple ingredients. For custom metadata, use 'all' unless it also contains this classification.",
+)
+st.info(
+    "ℹ️ **Reference sample type:** This setting filters reference spectra based on the 'simple/complex' classification. "
+    "**Foodomics data:** 'simple' = single ingredient foods, 'complex' = multi-ingredient foods. "
+    "**Custom metadata:** Use 'all' unless your metadata includes this same classification."
+)
 ontology_cols = st.text_input("Custom ontology columns (comma-separated)", "")
 levels_val = st.number_input(
     "Maximum ontology levels to analyse",
@@ -317,18 +347,21 @@ if st.button("Generate RDD Counts"):
                     )
             else:
                 # No cached data - fetch via task_id (for GNPS2 or if cache missing)
-                rdd = RDDCounts(
-                    task_id=gnps_task_id,
-                    gnps_2=(gnps_version == "GNPS2"),
-                    sample_types=sample_type,
-                    sample_groups=sample_groups_sel or None,
-                    sample_group_col=sample_group_col,
-                    levels=levels_val,
-                    external_reference_metadata=ref_meta_p,
-                    external_sample_metadata=sample_meta_p,
-                    ontology_columns=ontology_list or None,
-                    reference_groups=reference_groups_sel or None,
-                )
+                with st.spinner(
+                    f"🔄 Fetching GNPS{' 2' if gnps_version == 'GNPS2' else '1'} data from task {gnps_task_id}..."
+                ):
+                    rdd = RDDCounts(
+                        task_id=gnps_task_id,
+                        gnps_2=(gnps_version == "GNPS2"),
+                        sample_types=sample_type,
+                        sample_groups=sample_groups_sel or None,
+                        sample_group_col=sample_group_col,
+                        levels=levels_val,
+                        external_reference_metadata=ref_meta_p,
+                        external_sample_metadata=sample_meta_p,
+                        ontology_columns=ontology_list or None,
+                        reference_groups=reference_groups_sel or None,
+                    )
         else:
             rdd = RDDCounts(
                 gnps_network_path=gnps_path,
@@ -349,7 +382,27 @@ if st.button("Generate RDD Counts"):
         st.success("✅ RDDCounts object created successfully!")
 
     except Exception as e:
-        st.exception(e)
+        error_msg = str(e)
+        st.error(f"❌ Error creating RDDCounts: {error_msg}")
+
+        # Provide specific guidance for HTTP errors with task IDs
+        if gnps_task_id and (
+            "500" in error_msg or "HTTP" in error_msg.upper() or "404" in error_msg
+        ):
+            st.warning(
+                "⚠️ **Cannot Access GNPS Job Data**\n\n"
+                "This may occur due to server issues, archived jobs, or temporary API problems.\n\n"
+                "**Recommended Solution:**\n\n"
+                "1. Go to your GNPS job page in your browser\n"
+                "2. Download the network file:\n"
+                "   - **GNPS1:** `METABOLOMICS-SNETS-V2-[taskid]-view_all_clusters_withID_beta-main.tsv`\n"
+                "   - **GNPS2:** `clusterinfo.tsv`\n"
+                "3. Change input method above to **'Upload File'**\n"
+                "4. Upload your downloaded file\n\n"
+                "This will bypass the API and work with any GNPS job."
+            )
+        else:
+            st.exception(e)
 
 
 # -------- GROUP ASSIGNMENT SECTION (OUTSIDE BUTTON BLOCK) --------
